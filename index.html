@@ -5920,7 +5920,19 @@ function cardHTML(t){
   const subtasksHTML=`
     <div class="subtask-inline" id="sub-inline-${t.id}">
       <div class="subtask-inline-inner">
-        ${subs.length?`<div class="st-prog-bar"><div class="st-prog-fill" id="stpf-${t.id}" style="width:${pct}%"></div></div>`:''}
+        ${subs.length?`
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+          <button onclick="event.stopPropagation();toggleStSelectAll('${t.id}')" id="st-sel-all-${t.id}"
+            style="font-size:10px;padding:2px 8px;border-radius:5px;border:1px solid var(--border);background:#fff;color:var(--text2);cursor:pointer;font-family:var(--font)">全選択</button>
+        </div>
+        <div id="st-bulk-bar-${t.id}" style="display:none;padding:6px 8px;background:var(--accent-light);border-radius:7px;margin-bottom:6px;align-items:center;gap:6px;flex-wrap:wrap">
+          <span id="st-bulk-count-${t.id}" style="font-size:11px;color:var(--accent);font-weight:700"></span>
+          <button onclick="event.stopPropagation();stBulkComplete('${t.id}')" style="font-size:11px;padding:3px 10px;border-radius:5px;border:none;background:var(--green);color:#fff;cursor:pointer;font-family:var(--font);font-weight:600">✅ 一括完了</button>
+          <button onclick="event.stopPropagation();stBulkSetDue('${t.id}')" style="font-size:11px;padding:3px 10px;border-radius:5px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-family:var(--font);font-weight:600">📅 一括期限設定</button>
+          <button onclick="event.stopPropagation();stBulkDelete('${t.id}')" style="font-size:11px;padding:3px 10px;border-radius:5px;border:none;background:var(--red);color:#fff;cursor:pointer;font-family:var(--font);font-weight:600">🗑 一括削除</button>
+          <button onclick="event.stopPropagation();stBulkClear('${t.id}')" style="font-size:11px;padding:3px 8px;border-radius:5px;border:1px solid var(--border);background:#fff;color:var(--text2);cursor:pointer;font-family:var(--font)">× 解除</button>
+        </div>
+        <div class="st-prog-bar"><div class="st-prog-fill" id="stpf-${t.id}" style="width:${pct}%"></div></div>`:''}
         <div id="st-list-${t.id}">${subs.map(s=>stRowHTML(t.id,s)).join('')}</div>
         <div class="st-add-row" onclick="event.stopPropagation()">
           <input class="st-add-input" id="st-inp-${t.id}" placeholder="子タスクを追加..." onkeydown="if(event.key==='Enter'){event.preventDefault();quickAddSubtask(${t.id})}">
@@ -6008,6 +6020,9 @@ function cardHTML(t){
 
 function stRowHTML(parentId,s){
   const member=MEMBERS.find(m=>m.id===s.assignee);
+  const stChkHtml = `<input type="checkbox" class="st-bulk-chk" data-parent="${parentId}" data-sub="${s.id}"
+    onclick="event.stopPropagation();updateStBulkBar('${parentId}')"
+    style="margin-top:3px;width:14px;height:14px;accent-color:var(--accent);flex-shrink:0;cursor:pointer">`;
   const ts=fmt(T);
   const dc=s.due&&s.status!=='done'?(s.due<ts?'overdue':s.due===ts?'today-due':Math.floor((new Date(s.due)-T)/86400000)<=3?'soon':''):'';
   const urlHTML=s.url?`<a href="${s.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:10px;color:var(--accent);text-decoration:none;display:flex;align-items:center;gap:2px">🔗 ${s.urlLabel||'リンク'}</a>`:'';
@@ -6023,6 +6038,7 @@ function stRowHTML(parentId,s){
     onclick="event.stopPropagation()">
     <!-- メイン行 -->
     <div class="st-row-main">
+      ${stChkHtml}
       <div class="st-handle" title="ドラッグで並び替え">⠿</div>
       <input type="checkbox" ${s.status==='done'?'checked':''} onchange="toggleSubtaskDone(${parentId},'${s.id}')" style="width:16px;height:16px;accent-color:var(--green);cursor:pointer;flex-shrink:0" title="完了にする">
       <div style="flex:1;min-width:0">
@@ -6131,6 +6147,94 @@ function quickAddSubtask(parentId){
   inp.value='';inp.focus();
   renderStats();renderCatTabCounts();
   toast('✅ 子タスクを追加しました');
+}
+
+
+// ══ 子タスク一括操作 ══
+
+// チェック状態を更新して一括操作バーを表示/非表示
+function updateStBulkBar(parentId){
+  const checked = document.querySelectorAll(`.st-bulk-chk[data-parent="${parentId}"]:checked`);
+  const bar = document.getElementById(`st-bulk-bar-${parentId}`);
+  const countEl = document.getElementById(`st-bulk-count-${parentId}`);
+  if(!bar) return;
+  if(checked.length > 0){
+    bar.style.display = 'flex';
+    if(countEl) countEl.textContent = `${checked.length}件選択中`;
+  } else {
+    bar.style.display = 'none';
+  }
+  // 全選択ボタンのテキストを更新
+  const total = document.querySelectorAll(`.st-bulk-chk[data-parent="${parentId}"]`).length;
+  const allBtn = document.getElementById(`st-sel-all-${parentId}`);
+  if(allBtn) allBtn.textContent = checked.length === total && total > 0 ? '全解除' : '全選択';
+}
+
+// 全選択/全解除
+function toggleStSelectAll(parentId){
+  const all = document.querySelectorAll(`.st-bulk-chk[data-parent="${parentId}"]`);
+  const checked = document.querySelectorAll(`.st-bulk-chk[data-parent="${parentId}"]:checked`);
+  const shouldCheck = checked.length < all.length;
+  all.forEach(chk => {
+    chk.checked = shouldCheck;
+  });
+  updateStBulkBar(parentId);
+}
+
+// 一括完了
+function stBulkComplete(parentId){
+  const checked = [...document.querySelectorAll(`.st-bulk-chk[data-parent="${parentId}"]:checked`)];
+  if(!checked.length) return;
+  const {t, isPriv, privArr} = _findParentTask(parentId);
+  if(!t || !t.subtasks) return;
+  checked.forEach(chk => {
+    const s = t.subtasks.find(s => String(s.id) === String(chk.dataset.sub));
+    if(s){ s.status = 'done'; s.completedAt = fmt(T); }
+  });
+  _saveParentTask(isPriv, privArr);
+  rerenderInlineSubtasks(parentId);
+  stBulkClear(parentId);
+  renderStats(); renderCatTabCounts();
+  toast(`✅ ${checked.length}件を完了にしました`);
+}
+
+// 一括期限設定
+function stBulkSetDue(parentId){
+  const checked = [...document.querySelectorAll(`.st-bulk-chk[data-parent="${parentId}"]:checked`)];
+  if(!checked.length) return;
+  const due = prompt('期限日時を入力してください（例：2026-08-31T17:00）');
+  if(!due) return;
+  const {t, isPriv, privArr} = _findParentTask(parentId);
+  if(!t || !t.subtasks) return;
+  checked.forEach(chk => {
+    const s = t.subtasks.find(s => String(s.id) === String(chk.dataset.sub));
+    if(s) s.due = due;
+  });
+  _saveParentTask(isPriv, privArr);
+  rerenderInlineSubtasks(parentId);
+  stBulkClear(parentId);
+  toast(`📅 ${checked.length}件の期限を設定しました`);
+}
+
+// 一括削除
+function stBulkDelete(parentId){
+  const checked = [...document.querySelectorAll(`.st-bulk-chk[data-parent="${parentId}"]:checked`)];
+  if(!checked.length) return;
+  if(!confirm(`${checked.length}件の子タスクを削除しますか？`)) return;
+  const {t, isPriv, privArr} = _findParentTask(parentId);
+  if(!t || !t.subtasks) return;
+  const ids = checked.map(chk => String(chk.dataset.sub));
+  t.subtasks = t.subtasks.filter(s => !ids.includes(String(s.id)));
+  _saveParentTask(isPriv, privArr);
+  rerenderInlineSubtasks(parentId);
+  renderStats(); renderCatTabCounts();
+  toast(`🗑 ${checked.length}件を削除しました`);
+}
+
+// 選択解除
+function stBulkClear(parentId){
+  document.querySelectorAll(`.st-bulk-chk[data-parent="${parentId}"]`).forEach(chk => chk.checked = false);
+  updateStBulkBar(parentId);
 }
 
 function rerenderInlineSubtasks(parentId){
@@ -6368,6 +6472,9 @@ function renderSubPanel(){
 
 function subPanelItemHTML(parentId,s){
   const member=MEMBERS.find(m=>m.id===s.assignee);
+  const stChkHtml = `<input type="checkbox" class="st-bulk-chk" data-parent="${parentId}" data-sub="${s.id}"
+    onclick="event.stopPropagation();updateStBulkBar('${parentId}')"
+    style="margin-top:3px;width:14px;height:14px;accent-color:var(--accent);flex-shrink:0;cursor:pointer">`;
   const ts=fmt(T);
   const dueCls=s.due&&s.status!=='done'?(s.due<ts?'overdue':s.due===ts?'today-due':Math.floor((new Date(s.due)-T)/86400000)<=3?'soon':''):'';
   const isDone=s.status==='done';
