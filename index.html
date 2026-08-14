@@ -5998,10 +5998,7 @@ function cardHTML(t){
       </div>
       <div class="qe-group">
         <span class="qe-label">承認者</span>
-        <select class="qe-input" id="qe-approver-${t.id}" style="width:120px">
-          <option value="">承認不要</option>
-          ${MEMBERS.map(m=>`<option value="${m.id}" ${t.approver===m.id?'selected':''}>${m.name}</option>`).join('')}
-        </select>
+
       </div>
       <div class="qe-group">
         <span class="qe-label">メモ</span>
@@ -9150,7 +9147,7 @@ function openModal(){
   document.getElementById('f-start').value='';
   document.getElementById('f-due').value=fmt(T);
   document.getElementById('f-assignee').value=currentUser?.id||'';
-  document.getElementById('f-approver').value='';
+  const approverEl=document.getElementById('f-approver');if(approverEl)approverEl.value='';
   document.getElementById('f-file-list').innerHTML='';
   const shareTeam = document.getElementById('f-share-team');
   if(shareTeam){ shareTeam.checked=true; onShareChange(); }
@@ -9360,7 +9357,7 @@ function editTask(e,id){
   // 担当者・承認者
   populateAssigneeSelects();
   document.getElementById('f-assignee').value = t.assignee || '';
-  document.getElementById('f-approver').value = t.approver || '';
+  const approverEl2=document.getElementById('f-approver');if(approverEl2)approverEl2.value=t.approver||'';
   populateLeavePersonSelect(t.leavePersonLink || '');
 
   // 公開範囲
