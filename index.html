@@ -511,13 +511,9 @@ body.modal-open{overflow:hidden}
 
     <div class="cat-tab-sub" id="tab-links" onclick="setMajorCat('links',this)">
       <span class="cat-tab-icon">🔗</span>
-      <span>リンク集</span>
+      <span>リンク集・資料</span>
     </div>
-    <div class="cat-tab-sub" id="tab-docs" onclick="setMajorCat('docs',this)">
-      <span class="cat-tab-icon">📁</span>
-      <span>社内資料</span>
-      <span class="cat-tab-count" id="mc-docs">0</span>
-    </div>
+
     <div class="cat-tab-sub" id="tab-admin" onclick="setMajorCat('admin',this)">
       <span class="cat-tab-icon">⚙</span>
       <span>管理</span>
@@ -704,10 +700,7 @@ body.modal-open{overflow:hidden}
       <div class="panel-sec" id="today-summary-sec" style="background:linear-gradient(135deg,var(--accent-light),#f0fdf4);border-bottom:1px solid var(--border)">
         <div id="today-summary-content"></div>
       </div>
-      <div class="panel-sec">
-        <div class="panel-title">📋 承認ワークフロー</div>
-        <div id="approval-list"><div style="font-size:11px;color:var(--text3)">承認待ちタスクなし</div></div>
-      </div>
+
       <div class="panel-sec">
         <div class="panel-title">🔔 アラート・リマインド</div>
         <div id="reminder-list"></div>
@@ -4182,7 +4175,6 @@ function checkAlerts(){
   const myOverdue=tasks.filter(t=>t.assignee===currentUser.id&&t.status!=='done'&&t.due&&t.due<ts);
   const myReview=tasks.filter(t=>t.approver===currentUser.id&&t.status==='review');
   const alerts=[];
-  if(myReview.length)alerts.push(`承認待ちタスクが${myReview.length}件あります`);
 }
 
 // ══ RENDER ALL ══
