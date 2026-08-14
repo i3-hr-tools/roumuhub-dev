@@ -9083,7 +9083,7 @@ function exportSingleIcs(id){event.stopPropagation();const t=tasks.find(t=>Strin
 function populateAssigneeSelects(){
   const opts=MEMBERS.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
   document.getElementById('f-assignee').innerHTML='<option value="">未割り当て</option>'+opts;
-  document.getElementById('f-approver').innerHTML='<option value="">承認不要</option>'+opts;
+  const apprEl=document.getElementById('f-approver');if(apprEl)apprEl.innerHTML='<option value="">承認不要</option>'+opts;
 }
 
 // ══ FILE ATTACH ══
@@ -9187,7 +9187,7 @@ function getVals(title){
     deadlineRule:(()=>{const el=document.getElementById('f-deadline-rule');return el?el.value:'fixed';})(),
     status:document.getElementById('f-status').value,
     assignee:document.getElementById('f-assignee').value,
-    approver:document.getElementById('f-approver').value,
+    approver:(document.getElementById('f-approver')||{value:''}).value,
     files:editFiles,
   };
 }
