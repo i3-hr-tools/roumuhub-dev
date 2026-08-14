@@ -1027,7 +1027,7 @@ body.modal-open{overflow:hidden}
       </div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">開始日</label><input class="form-input" id="f-start" type="date" onchange="onStartDateChange()" oninput="onStartDateChange()"></div>
+
       <div class="form-group">
         <label class="form-label">期限日時</label>
         <div style="display:flex;gap:8px;align-items:center">
@@ -1500,19 +1500,22 @@ body.modal-open{overflow:hidden}
       </div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">開始日</label>
-        <input class="form-input" id="st-start" type="datetime-local">
-      </div>
+
       <div class="form-group"><label class="form-label">期限日</label>
         <input class="form-input" id="st-due" type="datetime-local">
         <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
-          <span style="font-size:11px;color:var(--text3)">または</span>
+          <span style="font-size:11px;color:var(--text3);white-space:nowrap">または</span>
           <input class="form-input" id="st-due-bizday" type="number" min="1" max="31" placeholder="例：5"
-            style="width:70px;font-size:12px" title="月初から何営業日目か">
+            style="width:80px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--mono)"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();applyStBizDay();}"
+            oninput="stBizdayPreview()">
           <span style="font-size:11px;color:var(--text3);white-space:nowrap">営業日目（月初から）</span>
-          <button type="button" onclick="applyStBizDay()" class="btn btn-ghost"
-            style="font-size:11px;padding:3px 8px">反映</button>
+          <button type="button" onclick="applyStBizDay()"
+            style="padding:5px 10px;border-radius:6px;border:1px solid var(--accent);background:var(--accent-light);color:var(--accent);font-size:11px;font-family:var(--font);cursor:pointer;white-space:nowrap"
+            onmouseover="this.style.background='var(--accent)';this.style.color='#fff'"
+            onmouseout="this.style.background='var(--accent-light)';this.style.color='var(--accent)'">反映</button>
         </div>
+        <div id="st-bizday-preview" style="font-size:11px;color:var(--accent);margin-top:4px;font-weight:600;min-height:16px"></div>
       </div>
     </div>
     <div class="form-group"><label class="form-label">URL</label>
@@ -5945,7 +5948,6 @@ function cardHTML(t){
         </div>
         <div class="task-meta">
           ${stTag}${catTag}${hireTag}${leaveTag}
-          ${t.start?`<span class="due-label">🗓 ${t.start.replace(/-/g,'/')}</span>`:''}
           ${dl?`<span class="due-label ${dc}">${DUE_ICON_HTML(dc)} ${dl}</span>`:''}
           ${bizDayBadge(t.due, t.status==='done')}
           ${approvalTag}
@@ -6027,7 +6029,6 @@ function stRowHTML(parentId,s){
         <div id="st-title-wrap-${parentId}-${s.id}" class="st-name" ondblclick="startStInlineEdit(event,${parentId},'${s.id}')" title="ダブルクリックでタイトル編集" style="cursor:text">${escHtml(s.title)}</div>
         <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:3px;align-items:center">
           ${member?`<span style="font-size:10px;color:var(--text2);display:flex;align-items:center;gap:3px"><span style="width:7px;height:7px;border-radius:50%;background:${member.color};display:inline-block"></span>${member.name}</span>`:''}
-          ${s.start?`<span style="font-size:10px;font-family:var(--mono);color:var(--text3)">🗓 ${s.start.replace(/-/g,'/')}</span>`:''}
           ${s.due?`<span class="due-label ${dc}" style="font-size:10px">📅 ${s.due.replace(/-/g,'/')}</span>`:''}
           ${bizDayBadge(s.due, s.status==='done')}
           ${urlHTML}
@@ -6048,7 +6049,6 @@ function stRowHTML(parentId,s){
     </div>
     <!-- クイック編集バー -->
     <div class="st-qe-bar" id="st-qe-${parentId}-${s.id}">
-      <div><span class="st-qe-label">開始日</span><input class="st-qe-input" id="stqe-start-${parentId}-${s.id}" type="datetime-local" value="${(s.start&&s.start.length>=16)?s.start.slice(0,16):''}" style="width:130px"></div>
       <div><span class="st-qe-label">期限日</span><input class="st-qe-input" id="stqe-due-${parentId}-${s.id}" type="datetime-local" value="${(s.due&&s.due.length>=16)?s.due.slice(0,16):''}" style="width:130px"></div>
       <div><span class="st-qe-label">担当者</span>
         <select class="st-qe-input" id="stqe-assignee-${parentId}-${s.id}" style="width:110px">
@@ -6211,41 +6211,51 @@ function openSubtaskModal(e,parentId,subtaskId){
     document.getElementById('st-title').value=s.title||'';
     document.getElementById('st-assignee').value=s.assignee||'';
     document.getElementById('st-status').value=s.status||'todo';
-    document.getElementById('st-start').value=s.start||'';
     document.getElementById('st-due').value=s.due||'';
     document.getElementById('st-url').value=s.url||'';
     document.getElementById('st-url-label').value=s.urlLabel||'';
     document.getElementById('st-note').value=s.note||'';
   } else {
     document.getElementById('st-modal-title').textContent='子タスクを追加';
-    ['st-title','st-start','st-due','st-url','st-url-label','st-note','st-due-bizday'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    ['st-title','st-due','st-url','st-url-label','st-note','st-due-bizday'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    const stPrev=document.getElementById('st-bizday-preview');if(stPrev)stPrev.textContent='';
     document.getElementById('st-assignee').value=currentUser?.id||'';
     document.getElementById('st-status').value='todo';
   }
   document.getElementById('subtask-modal-overlay').classList.add('open');
 }
 
-// 子タスクの営業日入力を期限日に反映
-function applyStBizDay(){
-  const bizday = parseInt(document.getElementById('st-due-bizday').value);
-  if(isNaN(bizday) || bizday < 1) { toast('⚠ 営業日を入力してください', true); return; }
+// 子タスクの営業日プレビュー（親タスクのbizdayPreviewと同様）
+function stBizdayPreview(){
+  const n = parseInt(document.getElementById('st-due-bizday')?.value);
+  const preview = document.getElementById('st-bizday-preview');
+  if(!preview) return;
+  if(!n || n < 1){ preview.textContent=''; return; }
+  const result = getNthBusinessDayOfMonth(n);
+  const y = result.getFullYear();
+  const mo = String(result.getMonth()+1).padStart(2,'0');
+  const d = String(result.getDate()).padStart(2,'0');
+  const dow = ['日','月','火','水','木','金','土'][result.getDay()];
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  // 月初から営業日を計算（土日をスキップ）
-  let count = 0;
-  let d = new Date(year, month, 1);
-  while(count < bizday){
-    const day = d.getDay();
-    if(day !== 0 && day !== 6) count++;
-    if(count < bizday) d.setDate(d.getDate() + 1);
-  }
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth()+1).padStart(2,'0');
-  const dd = String(d.getDate()).padStart(2,'0');
+  preview.textContent = `→ ${now.getMonth()+1}月の第${n}営業日：${y}/${mo}/${d}（${dow}）`;
+}
+
+// 子タスクの営業日入力を期限日に反映（親タスクのapplyBizDayと同様）
+function applyStBizDay(){
+  const n = parseInt(document.getElementById('st-due-bizday')?.value);
+  if(!n || n < 1){ toast('⚠ 営業日数を入力してください', true); return; }
+  const result = getNthBusinessDayOfMonth(n);
+  const y = result.getFullYear();
+  const m = String(result.getMonth()+1).padStart(2,'0');
+  const d = String(result.getDate()).padStart(2,'0');
   const dueEl = document.getElementById('st-due');
-  if(dueEl) dueEl.value = `${yyyy}-${mm}-${dd}T17:00`;
-  toast(`📅 ${bizday}営業日目（${yyyy}/${mm}/${dd}）を設定しました`);
+  if(dueEl) dueEl.value = `${y}-${m}-${d}T17:00`;
+  const dow = ['日','月','火','水','木','金','土'][result.getDay()];
+  const preview = document.getElementById('st-bizday-preview');
+  const now = new Date();
+  if(preview) preview.textContent = `✅ ${now.getMonth()+1}月の第${n}営業日（${y}/${m}/${d} ${dow}）を設定しました`;
+  document.getElementById('st-due-bizday').value = '';
+  toast(`📅 ${now.getMonth()+1}月の第${n}営業日（${y}/${m}/${d}）を期限日に設定しました`);
 }
 
 function saveSubtaskDetail(){
@@ -6259,7 +6269,7 @@ function saveSubtaskDetail(){
     title,
     assignee:document.getElementById('st-assignee').value,
     status:document.getElementById('st-status').value,
-    start:document.getElementById('st-start').value,
+    start:'',
     due:document.getElementById('st-due').value,
     url:document.getElementById('st-url').value.trim(),
     urlLabel:document.getElementById('st-url-label').value.trim(),
@@ -6754,7 +6764,7 @@ function stQuickEditToggle(e,parentId,subId){
 function saveStQuickEdit(parentId,subId){
   const {t,isPriv,privArr}=_findParentTask(parentId);if(!t||!t.subtasks)return;
   const s=t.subtasks.find(s=>String(s.id)===String(subId));if(!s)return;
-  s.start=document.getElementById(`stqe-start-${parentId}-${subId}`)?.value||'';
+  s.start='';
   s.due=document.getElementById(`stqe-due-${parentId}-${subId}`)?.value||'';
   s.assignee=document.getElementById(`stqe-assignee-${parentId}-${subId}`)?.value||'';
   s.note=document.getElementById(`stqe-note-${parentId}-${subId}`)?.value||'';
@@ -8369,27 +8379,6 @@ function getNthBusinessDayOfMonth(n, year, month){
 }
 
 // date+timeを結合してf-dueに同期
-// 開始日変更時に期限日が逆転していれば自動スライド
-function onStartDateChange(){
-  const startEl = document.getElementById('f-start');
-  const dueDateEl = document.getElementById('f-due-date');
-  const dueTimeEl = document.getElementById('f-due-time');
-  if(!startEl || !dueDateEl || !startEl.value || !dueDateEl.value) return;
-  const startDt = new Date(startEl.value);
-  const dueStr  = dueDateEl.value + 'T' + (dueTimeEl ? dueTimeEl.value : '17:00');
-  const dueDt   = new Date(dueStr);
-  if(!isNaN(startDt) && !isNaN(dueDt) && startDt > dueDt){
-    // 期限を開始日の1時間後に自動スライド
-    const newDue = new Date(startDt);
-    newDue.setHours(newDue.getHours() + 1);
-    const newDate = newDue.toISOString().split('T')[0];
-    const newTime = String(newDue.getHours()).padStart(2,'0') + ':' + String(newDue.getMinutes()).padStart(2,'0');
-    dueDateEl.value = newDate;
-    if(dueTimeEl) dueTimeEl.value = newTime;
-    syncDueDatetime();
-    toast('📅 期限日時を開始日時の1時間後に自動調整しました');
-  }
-}
 
 function syncDueDatetime(){
   const date = document.getElementById('f-due-date')?.value;
@@ -9129,14 +9118,13 @@ function onShareChange(){
 function openModal(){
   editId=null;editFiles=[];
   document.getElementById('modal-title').textContent='タスクを追加';
-  ['f-title','f-note','f-file-url','f-file-name','f-start'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['f-title','f-note','f-file-url','f-file-name'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('f-cat').value='kyuyo';
   const drEl=document.getElementById('f-deadline-rule');if(drEl)drEl.value='fixed';
   const drPrev=document.getElementById('deadline-rule-preview');if(drPrev)drPrev.textContent='';
   document.getElementById('f-remind').value='3';
   document.getElementById('f-rep').value='';
   document.getElementById('f-status').value='todo';
-  document.getElementById('f-start').value='';
   document.getElementById('f-due').value=fmt(T);
   document.getElementById('f-assignee').value=currentUser?.id||'';
   const approverEl=document.getElementById('f-approver');if(approverEl)approverEl.value='';
@@ -9167,7 +9155,7 @@ function getVals(title){
   return{
     title,
     cat:document.getElementById('f-cat').value,
-    start:document.getElementById('f-start')?.value || '',
+    start:'',
     due:document.getElementById('f-due').value,
     remind:document.getElementById('f-remind').value,
     note:document.getElementById('f-note').value.trim(),
@@ -9188,15 +9176,7 @@ function saveTask(){
   const title=document.getElementById('f-title').value.trim();
   if(!title){toast('⚠ タスク名を入力してください',true);return;}
   const v=getVals(title);
-  // 日時逆転チェック：開始日時 > 期限日時の場合はブロック
-  if(v.start && v.due){
-    const startDt = new Date(v.start);
-    const dueDt   = new Date(v.due);
-    if(!isNaN(startDt) && !isNaN(dueDt) && startDt > dueDt){
-      toast('❌ 開始日時は期限日時より前の日時を設定してください', true);
-      return;
-    }
-  }
+
   const isPrivate = v.isPrivate;
   let savedTask;
 
@@ -9324,8 +9304,6 @@ function editTask(e,id){
   document.getElementById('f-note').value = t.note || '';
   document.getElementById('f-rep').value = t.rep || '';
 
-  const startEl = document.getElementById('f-start');
-  if(startEl) startEl.value = t.start || '';
 
   // 期限日時
   const dueParts = (t.due || '').split('T');
