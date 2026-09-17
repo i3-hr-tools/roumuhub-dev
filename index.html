@@ -3509,7 +3509,7 @@ function renderLogStats(){
   document.getElementById('ls-rejected').textContent=rejected;
   document.getElementById('ls-total').textContent=approvalLogs.length;
   document.getElementById('ls-pending').textContent=pending;
-  document.getElementById('mc-approvallog').textContent=approvalLogs.length;
+  const apLogEl=document.getElementById('mc-approvallog');if(apLogEl)apLogEl.textContent=approvalLogs.length;
 }
 
 function renderLogTable(){
