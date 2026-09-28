@@ -3320,10 +3320,10 @@ function renderLinkCatFilter(){
   const bar=document.getElementById('link-cat-filter-bar');
   if(!bar)return;
   bar.innerHTML=`<button class="filter-chip ${linkCatFilter==='all'?'active':''}" onclick="setLinkCatFilter('all',this)">すべて</button>`
-    +linkCats.map(c=>`<button class="filter-chip ${linkCatFilter===c.id?'active':''}" onclick="setLinkCatFilter('${c.id}',this)">${c.icon} ${c.name}</button>`).join('');
+    +linkCats.map(c=>`<button class="filter-chip ${linkCatFilter===c.id?'active':''}" onclick="setLinkCatFilter('${escHtml(c.id)}',this)">${escHtml(c.icon)} ${escHtml(c.name)}</button>`).join('');
   // lm-catのselectも更新
   const sel=document.getElementById('lm-cat');
-  if(sel){sel.innerHTML=linkCats.map(c=>`<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');}
+  if(sel){sel.innerHTML=linkCats.map(c=>`<option value="${escHtml(c.id)}">${escHtml(c.icon)} ${escHtml(c.name)}</option>`).join('');}
 }
 
 function setLinkCatFilter(cat,el){
@@ -4516,7 +4516,7 @@ function renderAnnualChecklist(proj,pi){
         const tm=MEMBERS.find(m=>m.id===t.assignee)||member;
         const isDone=t.status==='done';
         const isOverdue=t.due&&new Date(t.due)<new Date()&&!isDone;
-        const memberOpts='<option value="">-</option>'+MEMBERS.map(m=>`<option value="${m.id}" ${t.assignee===m.id?'selected':''}>${m.name}</option>`).join('');
+        const memberOpts='<option value="">-</option>'+MEMBERS.map(m=>`<option value="${escHtml(m.id)}" ${t.assignee===m.id?'selected':''}>${escHtml(m.name)}</option>`).join('');
         return `<div class="annual-task-row" draggable="true"
           data-pi="${pi}" data-ti="${ti}"
           ondragstart="annualDragStart(event,${pi},${ti})"
@@ -4819,7 +4819,7 @@ function openAnnualProjectModal(pi){
   document.getElementById('ap-link').value=proj?.link||'';
   document.getElementById('ap-link-label').value=proj?.linkLabel||'';
   document.getElementById('ap-note').value=proj?.note||'';
-  document.getElementById('ap-assignee').innerHTML='<option value="">未割り当て</option>'+MEMBERS.map(m=>`<option value="${m.id}" ${proj?.assignee===m.id?'selected':''}>${m.name}</option>`).join('');
+  document.getElementById('ap-assignee').innerHTML='<option value="">未割り当て</option>'+MEMBERS.map(m=>`<option value="${escHtml(m.id)}" ${proj?.assignee===m.id?'selected':''}>${escHtml(m.name)}</option>`).join('');
   document.getElementById('ap-assignee').value=proj?.assignee||'';
   const listEl=document.getElementById('ap-tasks-list');
   const tasksToShow=proj?proj.tasks.filter(t=>!t.title.includes('見直し')):[];
@@ -5133,7 +5133,7 @@ function permanentDeleteTask(id){
 function openBulkAssigneeModal(){
   const fromSel = document.getElementById('ba-from');
   const toSel   = document.getElementById('ba-to');
-  const memberOpts = MEMBERS.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+  const memberOpts = MEMBERS.map(m=>`<option value="${escHtml(m.id)}">${escHtml(m.name)}</option>`).join('');
   fromSel.innerHTML = '<option value="">すべての担当者（担当者なし含む）</option>' + memberOpts;
   toSel.innerHTML   = '<option value="">未割り当て</option>' + memberOpts;
   updateBulkAssigneePreview();
@@ -5999,7 +5999,7 @@ function cardHTML(t){
         <span class="qe-label">担当者</span>
         <select class="qe-input" id="qe-assignee-${t.id}" style="width:120px">
           <option value="">未割り当て</option>
-          ${MEMBERS.map(m=>`<option value="${m.id}" ${t.assignee===m.id?'selected':''}>${m.name}</option>`).join('')}
+          ${MEMBERS.map(m=>`<option value="${escHtml(m.id)}" ${t.assignee===m.id?'selected':''}>${escHtml(m.name)}</option>`).join('')}
         </select>
       </div>
       <div class="qe-group">
@@ -6069,7 +6069,7 @@ function stRowHTML(parentId,s){
       <div><span class="st-qe-label">担当者</span>
         <select class="st-qe-input" id="stqe-assignee-${parentId}-${s.id}" style="width:110px">
           <option value="">未割り当て</option>
-          ${MEMBERS.map(m=>`<option value="${m.id}" ${s.assignee===m.id?'selected':''}>${m.name}</option>`).join('')}
+          ${MEMBERS.map(m=>`<option value="${escHtml(m.id)}" ${s.assignee===m.id?'selected':''}>${escHtml(m.name)}</option>`).join('')}
         </select>
       </div>
       <div><span class="st-qe-label">メモ</span><input class="st-qe-input" id="stqe-note-${parentId}-${s.id}" value="${(s.note||'').replace(/"/g,'&quot;')}" placeholder="メモ" style="width:150px"></div>
@@ -6307,7 +6307,7 @@ function openSubtaskModal(e,parentId,subtaskId){
   const s=subtaskId?t.subtasks?.find(s=>String(s.id)===String(subtaskId)):null;
   // 担当者select更新
   const sel=document.getElementById('st-assignee');
-  sel.innerHTML='<option value="">未割り当て</option>'+MEMBERS.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+  sel.innerHTML='<option value="">未割り当て</option>'+MEMBERS.map(m=>`<option value="${escHtml(m.id)}">${escHtml(m.name)}</option>`).join('');
   document.getElementById('st-parent-id').value=parentId;
   document.getElementById('st-sub-id').value=subtaskId||'';
   if(s){
@@ -6413,7 +6413,7 @@ function openSubPanel(e,parentId){
   renderSubPanel();
   // 担当者select更新
   const sel=document.getElementById('sp-assignee');
-  if(sel)sel.innerHTML='<option value="">担当者未設定</option>'+MEMBERS.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+  if(sel)sel.innerHTML='<option value="">担当者未設定</option>'+MEMBERS.map(m=>`<option value="${escHtml(m.id)}">${escHtml(m.name)}</option>`).join('');
   const dueEl=document.getElementById('sp-due');
   if(dueEl&&!dueEl.value)dueEl.value=fmt(T);
   setTimeout(()=>document.getElementById('sp-title')?.focus(),100);
@@ -9169,7 +9169,7 @@ function exportSingleIcs(id){event.stopPropagation();const t=tasks.find(t=>Strin
 
 // ══ POPULATE SELECTS ══
 function populateAssigneeSelects(){
-  const opts=MEMBERS.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+  const opts=MEMBERS.map(m=>`<option value="${escHtml(m.id)}">${escHtml(m.name)}</option>`).join('');
   document.getElementById('f-assignee').innerHTML='<option value="">未割り当て</option>'+opts;
   const apprEl=document.getElementById('f-approver');if(apprEl)apprEl.innerHTML='<option value="">承認不要</option>'+opts;
 }
@@ -9601,7 +9601,7 @@ function processCsvText(text){
     parsedCsvRows.slice(0,10).map(r=>'<tr>'+cols.map(c=>`<td style="padding:5px 8px;border-bottom:1px solid var(--border)">${r[c]||'—'}</td>`).join('')+'</tr>').join('')+
     (parsedCsvRows.length>10?`<tr><td colspan="${cols.length}" style="padding:5px 8px;color:var(--text3);text-align:center">… 他${parsedCsvRows.length-10}件</td></tr>`:'')+'</tbody>';
 
-  document.getElementById('csv-errors').innerHTML = errors.map(e=>`⚠ ${e}`).join('<br>');
+  document.getElementById('csv-errors').innerHTML = errors.map(e=>`⚠ ${escHtml(String(e))}`).join('<br>');
   preview.style.display = 'block';
 
   const btn = document.getElementById('csv-import-btn');
@@ -9845,7 +9845,7 @@ function openTemplateModal(){
   document.getElementById('tmpl-modal-overlay').classList.add('open');
   // 担当者select更新
   const sel=document.getElementById('ta-assignee');
-  sel.innerHTML='<option value="">未割り当て</option>'+MEMBERS.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+  sel.innerHTML='<option value="">未割り当て</option>'+MEMBERS.map(m=>`<option value="${escHtml(m.id)}">${escHtml(m.name)}</option>`).join('');
 }
 
 function setTmplFreq(freq, el){
