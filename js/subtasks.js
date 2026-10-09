@@ -328,11 +328,13 @@ function saveSubtaskDetail(){
     urlLabel:document.getElementById('st-url-label').value.trim(),
     note:document.getElementById('st-note').value.trim(),
   };
+  let savedSub;
   if(subtaskId){
     const s=t.subtasks.find(s=>String(s.id)===String(subtaskId));
-    if(s)Object.assign(s,vals);
+    if(s){Object.assign(s,vals);savedSub=s;}
   } else {
-    t.subtasks.push({id:'s'+Date.now(),...vals});
+    savedSub={id:'s'+Date.now(),...vals};
+    t.subtasks.push(savedSub);
   }
   checkParentAutoComplete(t);
   _saveParentTask(isPriv, privArr);
@@ -340,6 +342,7 @@ function saveSubtaskDetail(){
   rerenderInlineSubtasks(parentId);
   renderStats();renderCatTabCounts();
   toast('💾 保存しました');
+  if(savedSub && savedSub.assignee && savedSub.due) autoSyncSubtaskToCalendar(savedSub, t);
   if(isGasEnabled()) immediateSync();
 }
 
@@ -468,6 +471,7 @@ function toggleSubtaskDone(parentId,subtaskId){
   const {t,isPriv,privArr}=_findParentTask(parentId);if(!t||!t.subtasks)return;
   const s=t.subtasks.find(s=>String(s.id)===String(subtaskId));if(!s)return;
   s.status=s.status==='done'?'todo':'done';
+  if(s.assignee&&s.due) autoSyncSubtaskToCalendar(s, t);
   checkParentAutoComplete(t);
   // 展開中のカードIDを保持
   const expandedIds=new Set([...document.querySelectorAll('.task-card.expanded')].map(el=>parseInt(el.id.replace('card-',''))));
@@ -487,6 +491,7 @@ function changeSubtaskStatus(parentId,subtaskId,status){
   const {t,isPriv,privArr}=_findParentTask(parentId);if(!t||!t.subtasks)return;
   const s=t.subtasks.find(s=>String(s.id)===String(subtaskId));if(!s)return;
   s.status=status;
+  if(s.assignee&&s.due) autoSyncSubtaskToCalendar(s, t);
   checkParentAutoComplete(t);
   saveTasks();renderSubPanel();renderTasks();renderStats();renderCatTabCounts();
 }
@@ -494,8 +499,64 @@ function changeSubtaskStatus(parentId,subtaskId,status){
 function deleteSubtask(e,parentId,subtaskId){
   e.stopPropagation();
   const {t,isPriv,privArr}=_findParentTask(parentId);if(!t||!t.subtasks)return;
+  const s=t.subtasks.find(s=>String(s.id)===String(subtaskId));
+  if(s && s.assignee && s.due){
+    const member = MEMBERS.find(m => m.id === s.assignee);
+    if(member) autoDeleteSubtaskFromCalendar(s.id, s.title, member);
+  }
   t.subtasks=t.subtasks.filter(s=>String(s.id)!==String(subtaskId));
   saveTasks();renderSubPanel();renderTasks();toast('🗑 削除しました');
+}
+
+// ══ カレンダー自動同期（子タスク）══
+// 子タスクに明確な期限日が設定されている場合のみGoogleカレンダーに同期する
+// カレンダー上では「親タスク名 ▸ 子タスク名」で表示し、識別IDはsub-で始める（親タスクと衝突しないため）
+async function autoSyncSubtaskToCalendar(subtask, parentTask){
+  if(!isGasEnabled()) return;
+  if(!subtask || !subtask.due || !subtask.assignee) return;
+  const member = MEMBERS.find(m => m.id === subtask.assignee);
+  if(!member || !member.email || !member.calendarId) return;
+  if(subtask.status === 'done'){
+    autoDeleteSubtaskFromCalendar(subtask.id, subtask.title, member);
+    return;
+  }
+  try {
+    const params = new URLSearchParams({
+      action: 'upsertTaskCalendar',
+      task:   JSON.stringify({
+        id: 'sub-'+subtask.id,
+        title: `${parentTask.title} ▸ ${subtask.title}`,
+        due: subtask.due,
+        cat: parentTask.cat,
+        status: subtask.status,
+        note: subtask.note || '',
+      }),
+      member: JSON.stringify({ name: member.name, calendarId: member.calendarId, email: member.email }),
+    });
+    if(gAccessToken) params.append('token', gAccessToken);
+    await fetch(`${getGasUrl()}?${params}`, { redirect:'follow' });
+  } catch(e) {
+    console.warn('autoSyncSubtaskToCalendar failed:', e);
+    setSyncStatus('⚠ カレンダー同期失敗');
+  }
+}
+
+async function autoDeleteSubtaskFromCalendar(subtaskId, subtaskTitle, member){
+  if(!isGasEnabled()) return;
+  if(!member || !member.email || !member.calendarId) return;
+  try {
+    const params = new URLSearchParams({
+      action:    'deleteTaskCalendar',
+      taskId:    'sub-'+String(subtaskId),
+      taskTitle: subtaskTitle || '',
+      member:    JSON.stringify({ calendarId: member.calendarId, email: member.email }),
+    });
+    if(gAccessToken) params.append('token', gAccessToken);
+    await fetch(`${getGasUrl()}?${params}`, { redirect:'follow' });
+  } catch(e) {
+    console.warn('autoDeleteSubtaskFromCalendar failed:', e);
+    setSyncStatus('⚠ カレンダー削除失敗');
+  }
 }
 
 function checkParentAutoComplete(t){
