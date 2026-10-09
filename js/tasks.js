@@ -2064,3 +2064,36 @@ function importCsv(){
   closeCsvModal();
   toast(`✅ ${tasks.length}件のタスクを取り込みました`);
 }
+function openModal(){
+  editId=null;editFiles=[];
+  document.getElementById('modal-title').textContent='タスクを追加';
+  ['f-title','f-note','f-file-url','f-file-name'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('f-cat').value='kyuyo';
+  const drEl=document.getElementById('f-deadline-rule');if(drEl)drEl.value='fixed';
+  const drPrev=document.getElementById('deadline-rule-preview');if(drPrev)drPrev.textContent='';
+  document.getElementById('f-remind').value='3';
+  document.getElementById('f-rep').value='';
+  document.getElementById('f-status').value='todo';
+  document.getElementById('f-due').value=fmt(T);
+  document.getElementById('f-assignee').value=currentUser?.id||'';
+  const approverEl=document.getElementById('f-approver');if(approverEl)approverEl.value='';
+  document.getElementById('f-file-list').innerHTML='';
+  const shareTeam = document.getElementById('f-share-team');
+  if(shareTeam){ shareTeam.checked=true; onShareChange(); }
+  populateLeavePersonSelect();
+  const scopeTeam = document.getElementById('f-scope-team');
+  if(scopeTeam){ scopeTeam.checked=true; updateScopeStyle(); }
+  const repBizEl = document.getElementById('f-rep-biz'); if(repBizEl) repBizEl.value='';
+  toggleRepOptions();
+  const dde=document.getElementById('f-due-date'); if(dde)dde.value='';
+  const dte=document.getElementById('f-due-time'); if(dte)dte.value='17:00';
+  // 新規作成時はコメントセクションを非表示
+  const cmSection = document.getElementById('modal-comment-section');
+  if(cmSection) cmSection.style.display = 'none';
+  // 詳細設定を閉じた状態にリセット
+  const detailBody = document.getElementById('modal-detail-body');
+  const detailArrow = document.getElementById('modal-detail-arrow');
+  if(detailBody) detailBody.style.display = 'none';
+  if(detailArrow) detailArrow.style.transform = 'rotate(0deg)';
+  document.getElementById('modal-overlay').classList.add('open');
+}

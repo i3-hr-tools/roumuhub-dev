@@ -1151,6 +1151,7 @@
 <script src="js/subtasks.js"></script>
 <script src="js/calendar.js"></script>
 <script src="js/templates.js"></script>
+<script src="js/ui.js"></script>
 <script>
 // ══ CONFIG（js/config.jsに移動）══
 
@@ -3053,10 +3054,6 @@ function uploadLogo(e){
 }
 
 // ══ CLOCK ══
-function clock(){
-  const tick=()=>{const n=new Date();document.getElementById('clock').textContent=n.toLocaleDateString('ja-JP',{month:'short',day:'numeric',weekday:'short'})+' '+n.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})};
-  tick();setInterval(tick,1000);
-}
 
 
 // PINログイン状態
@@ -6153,41 +6150,6 @@ function onShareChange(){
 }
 
 // 新規タスク作成専用モーダルを開く（編集時は_openEditModalを使用）
-function openModal(){
-  editId=null;editFiles=[];
-  document.getElementById('modal-title').textContent='タスクを追加';
-  ['f-title','f-note','f-file-url','f-file-name'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  document.getElementById('f-cat').value='kyuyo';
-  const drEl=document.getElementById('f-deadline-rule');if(drEl)drEl.value='fixed';
-  const drPrev=document.getElementById('deadline-rule-preview');if(drPrev)drPrev.textContent='';
-  document.getElementById('f-remind').value='3';
-  document.getElementById('f-rep').value='';
-  document.getElementById('f-status').value='todo';
-  document.getElementById('f-due').value=fmt(T);
-  document.getElementById('f-assignee').value=currentUser?.id||'';
-  const approverEl=document.getElementById('f-approver');if(approverEl)approverEl.value='';
-  document.getElementById('f-file-list').innerHTML='';
-  const shareTeam = document.getElementById('f-share-team');
-  if(shareTeam){ shareTeam.checked=true; onShareChange(); }
-  populateLeavePersonSelect();
-  const scopeTeam = document.getElementById('f-scope-team');
-  if(scopeTeam){ scopeTeam.checked=true; updateScopeStyle(); }
-  const repBizEl = document.getElementById('f-rep-biz'); if(repBizEl) repBizEl.value='';
-  toggleRepOptions();
-  const dde=document.getElementById('f-due-date'); if(dde)dde.value='';
-  const dte=document.getElementById('f-due-time'); if(dte)dte.value='17:00';
-  // 新規作成時はコメントセクションを非表示
-  const cmSection = document.getElementById('modal-comment-section');
-  if(cmSection) cmSection.style.display = 'none';
-  // 詳細設定を閉じた状態にリセット
-  const detailBody = document.getElementById('modal-detail-body');
-  const detailArrow = document.getElementById('modal-detail-arrow');
-  if(detailBody) detailBody.style.display = 'none';
-  if(detailArrow) detailArrow.style.transform = 'rotate(0deg)';
-  document.getElementById('modal-overlay').classList.add('open');
-}
-function closeModal(id){document.getElementById(id).classList.remove('open')}
-function closeBg(e,id){if(e.target===document.getElementById(id))closeModal(id)}
 
 
 
@@ -6259,93 +6221,19 @@ let tmplSubtasks=[];
 
 
 // ══ TOAST ══
-function toast(msg,err=false){
-  // err=true（後方互換）→ エラー扱い。第2引数に 'success'|'error' も可
-  const type = (err===true||err==='error') ? 'error' : (err==='success'?'success':'success');
-  const c=document.getElementById('toasts'),d=document.createElement('div');
-  d.className='toast '+type;
-  const ic = type==='error' ? 'fa-solid fa-circle-exclamation' : 'fa-solid fa-circle-check';
-  d.innerHTML=`<span class="toast-ic"><i class="${ic}"></i></span><span>${msg}</span>`;
-  c.appendChild(d);
-  const dur = type==='error' ? 4200 : 2600;
-  setTimeout(()=>{d.style.opacity='0';d.style.transition='opacity .3s';setTimeout(()=>d.remove(),300)},dur);
-}
 
 // 重要アラート：中央上部・手動で閉じるまで常駐（同期失敗・競合など）
-function alertBanner(msg, level='error'){
-  const c=document.getElementById('alerts'); if(!c) return;
-  const d=document.createElement('div');
-  d.className='alert-toast'+(level==='warn'?' warn':'');
-  const ic = level==='warn' ? 'fa-solid fa-triangle-exclamation' : 'fa-solid fa-circle-exclamation';
-  d.innerHTML=`<i class="${ic}"></i><span>${msg}</span><button class="alert-close" aria-label="閉じる">✕</button>`;
-  d.querySelector('.alert-close').onclick=()=>d.remove();
-  c.appendChild(d);
-}
 
 // ── 共通モーダル制御（クラス式に統一）──
-function modalShow(id){
-  const el=document.getElementById(id); if(!el) return;
-  el.classList.add('open'); el.style.display='flex';
-  document.body.classList.add('modal-open');
-}
-function modalHide(id){
-  const el=document.getElementById(id); if(!el) return;
-  el.classList.remove('open');
-  if(!document.querySelector('.modal-overlay.open')) document.body.classList.remove('modal-open');
-}
 
 // 背景スクロールロックを開閉状態に同期（全モーダル共通の安全網）
-function syncBodyScrollLock(){
-  const anyOpen = !!document.querySelector('.modal-overlay.open');
-  document.body.classList.toggle('modal-open', anyOpen);
-}
 
 // ── 保存中ローディング ──
 let _loadingCount = 0;
-function showLoading(text='保存中…'){
-  _loadingCount++;
-  const el=document.getElementById('global-loading');
-  const t=document.getElementById('global-loading-text');
-  if(t) t.textContent=text;
-  if(el) el.classList.add('on');
-}
-function hideLoading(){
-  _loadingCount=Math.max(0,_loadingCount-1);
-  if(_loadingCount===0){ const el=document.getElementById('global-loading'); if(el) el.classList.remove('on'); }
-}
 
 // ── サイドバー（モバイル/狭幅でのドロワー）──
-function toggleSidebar(force){
-  const sb=document.querySelector('.sidebar');
-  const bd=document.getElementById('sidebar-backdrop');
-  if(!sb) return;
-  const open = (force===undefined) ? !sb.classList.contains('open') : !!force;
-  sb.classList.toggle('open', open);
-  if(bd) bd.classList.toggle('open', open);
-}
 
 // ── 全モーダル共通：背景クリック / Esc で閉じる ＋ スクロールロック監視 ──
-function setupModalUX(){
-  // 背景（オーバーレイ自身）クリックで閉じる
-  document.addEventListener('click', e=>{
-    const t=e.target;
-    if(t && t.classList && t.classList.contains('modal-overlay') && t.classList.contains('open')){
-      t.classList.remove('open');
-      syncBodyScrollLock();
-    }
-  });
-  // Escで最前面のモーダルを閉じる
-  document.addEventListener('keydown', e=>{
-    if(e.key==='Escape'){
-      const open=[...document.querySelectorAll('.modal-overlay.open')];
-      if(open.length){ open[open.length-1].classList.remove('open'); syncBodyScrollLock(); e.stopPropagation(); }
-    }
-  }, true);
-  // open クラスの増減を監視してスクロールロックを常に正しく保つ
-  const mo=new MutationObserver(syncBodyScrollLock);
-  document.querySelectorAll('.modal-overlay').forEach(m=>mo.observe(m,{attributes:true,attributeFilter:['class']}));
-  syncBodyScrollLock();
-}
 setupModalUX();
 
 init();
