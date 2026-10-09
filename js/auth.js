@@ -1,5 +1,10 @@
 // ══ Google認証・ログイン処理 ══
 
+// 認証状態変数
+let gTokenClient = null;
+let gAccessToken = null;
+let _tokenExpireAt = 0;
+
 function isTokenExpired() {
   return !gAccessToken || Date.now() > _tokenExpireAt - 5 * 60 * 1000;
 }
