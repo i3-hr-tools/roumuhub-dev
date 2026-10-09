@@ -453,18 +453,20 @@ function addSubtaskFromPanel(){
   const title=document.getElementById('sp-title').value.trim();
   if(!title){toast('⚠ 子タスク名を入力してください',true);return;}
   if(!t.subtasks)t.subtasks=[];
-  t.subtasks.push({
+  const newSub={
     id:'s'+Date.now(),title,
     assignee:document.getElementById('sp-assignee').value,
     due:document.getElementById('sp-due').value,
     status:document.getElementById('sp-status').value,
-  });
+  };
+  t.subtasks.push(newSub);
   saveTasks();
   document.getElementById('sp-title').value='';
   document.getElementById('sp-status').value='todo';
   renderSubPanel();renderTasks();renderStats();renderCatTabCounts();
   toast('✅ 子タスクを追加しました');
   document.getElementById('sp-title')?.focus();
+  if(newSub.assignee&&newSub.due) autoSyncSubtaskToCalendar(newSub, t);
 }
 
 function toggleSubtaskDone(parentId,subtaskId){
@@ -623,6 +625,7 @@ function saveStQuickEdit(parentId,subId){
   s.assignee=document.getElementById(`stqe-assignee-${parentId}-${subId}`)?.value||'';
   s.note=document.getElementById(`stqe-note-${parentId}-${subId}`)?.value||'';
   _saveParentTask(isPriv,privArr);rerenderInlineSubtasks(parentId);toast('💾 子タスクを更新しました');
+  if(s.assignee&&s.due) autoSyncSubtaskToCalendar(s, t);
 }
 
 function copySubtask(e,parentId,subId){
