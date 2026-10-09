@@ -1143,30 +1143,15 @@
   </div>
 </div>
 
-<script src="js/config.js"></script>
-<script src="js/utils.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/sync.js"></script>
 <script>
-// ══ CONFIG ══
-// ▼ GASウェブアプリのURLをここに貼り付けてください
-const GAS_URL = 'YOUR_GAS_WEB_APP_URL_HERE';
-// ▼ スプレッドシートIDをここに貼り付けてください（GAS側でも設定）
-const SHEET_ID = 'YOUR_SPREADSHEET_ID_HERE';
-
-// ══ GOOGLE OAuth 設定（GitHub Pages + GASスプレッドシート構成）══
-// ▼ GCPのOAuthクライアントID（承認済みオリジン: https://aitajiri0317.github.io）
-const GOOGLE_CLIENT_ID = '854356876888-o4cnprp3nm346qun6i6vav61fum51mgu.apps.googleusercontent.com';
-const LOGIN_SCOPES = 'email profile';
+// ══ CONFIG（js/config.jsに移動）══
 
 let gTokenClient = null;
 let gAccessToken = null;
 let _tokenExpireAt = 0; // トークン有効期限（Unixタイムスタンプ・ミリ秒）
 
-// トークンが期限切れ（または5分以内に期限）かチェック
-function isTokenExpired() {
-  return !gAccessToken || Date.now() > _tokenExpireAt - 5 * 60 * 1000;
-}
 
 // トークンをサイレントに自動更新する
 async function refreshTokenSilently() {
@@ -1185,24 +1170,6 @@ async function refreshTokenSilently() {
   });
 }
 
-// ── Google Identity Services 初期化 ──
-function initGoogleAuth() {
-  if (typeof google === 'undefined') {
-    setTimeout(initGoogleAuth, 500);
-    return;
-  }
-  gTokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: GOOGLE_CLIENT_ID,
-    scope: LOGIN_SCOPES,
-    callback: (tokenResponse) => {
-      if (tokenResponse.error) {
-        toast('⚠ Googleログインに失敗しました', true);
-        return;
-      }
-      gAccessToken = tokenResponse.access_token;
-    },
-  });
-}
 
 // ── アプリログイン用Googleログイン処理 ──
 // 許可するメールアドレス（GASのALLOWED_EMAILSと同じ）
@@ -1212,29 +1179,6 @@ const APP_ALLOWED_EMAILS = [
   'm.yamamoto@i3-systems.com'
 ];
 
-function handleGoogleLoginForApp() {
-  // GISが未初期化なら初期化してから実行
-  if (!gTokenClient) {
-    initGoogleAuth();
-    setTimeout(() => handleGoogleLoginForApp(), 800);
-    return;
-  }
-  // コールバックをアプリログイン用に一時的に上書き
-  gTokenClient.callback = async (tokenResponse) => {
-    if (tokenResponse.error) {
-      document.getElementById('login-step-loading').style.display = 'none';
-      document.getElementById('login-step-google').style.display = 'block';
-      showLoginError('Googleログインに失敗しました。もう一度お試しください。');
-      return;
-    }
-    gAccessToken = tokenResponse.access_token;
-    _tokenExpireAt = Date.now() + ((tokenResponse.expires_in || 3600) * 1000);
-    await completeAppLogin();
-  };
-  document.getElementById('login-step-google').style.display = 'none';
-  document.getElementById('login-step-loading').style.display = 'block';
-  gTokenClient.requestAccessToken({ prompt: 'select_account' });
-}
 
 async function completeAppLogin() {
   try {
@@ -1309,18 +1253,6 @@ function showLoginError(msg) {
   if (el) { el.textContent = msg; el.style.display = 'block'; }
 }
 
-// switchUserをGoogleログインに変更
-function switchUser() {
-  // Googleログアウトして再ログイン
-  if (gAccessToken) {
-    google.accounts.oauth2.revoke(gAccessToken, () => {});
-    gAccessToken = null;
-  }
-  document.getElementById('google-login-error').style.display = 'none';
-  document.getElementById('login-step-loading').style.display = 'none';
-  document.getElementById('login-step-google').style.display = 'block';
-  document.getElementById('user-select-modal').classList.add('open');
-}
 
 
 // ══ GAS SETTINGS ══
@@ -1329,24 +1261,7 @@ let _gasUrl = localStorage.getItem('gas_url') || 'YOUR_GAS_WEB_APP_URL_HERE';
 if(_gasUrl !== 'YOUR_GAS_WEB_APP_URL_HERE' && GAS_URL === 'YOUR_GAS_WEB_APP_URL_HERE'){
   // constは再代入不可なのでラッパー変数で管理
 }
-function getGasUrl(){
-  const stored = localStorage.getItem('gas_url');
-  return (stored && stored !== 'YOUR_GAS_WEB_APP_URL_HERE') ? stored : GAS_URL;
-}
-function isGasEnabled(){
-  return getGasUrl() !== 'YOUR_GAS_WEB_APP_URL_HERE';
-}
 
-// XSS対策：ユーザー入力値をHTMLに埋め込む前に必ずこの関数を通す
-function escHtml(str) {
-  if (str == null) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 // PINをハッシュ化して保存する（平文保存しないための対策）
 async function hashPin(pin) {
@@ -1413,34 +1328,7 @@ function showGasResult(type, msg){
   el.innerHTML = msg;
 }
 
-function saveGasUrl(){
-  const url = document.getElementById('gas-url-input').value.trim();
-  if(!url){
-    // URLが空なら削除（リセット）
-    localStorage.removeItem('gas_url');
-    toast('🔌 GAS URLをリセットしました');
-  } else {
-    localStorage.setItem('gas_url', url);
-    toast('✅ GAS URLを保存しました。同期が有効になりました。');
-  }
-  closeModal('gas-modal-overlay');
-  // ヘッダーの接続状態インジケーターを更新
-  updateGasIndicator();
-}
 
-function updateGasIndicator(){
-  const btn = document.getElementById('gas-settings-btn');
-  if(!btn) return;
-  if(isGasEnabled()){
-    btn.style.borderColor = 'var(--green)';
-    btn.style.color = 'var(--green)';
-    btn.textContent = '⚙ GAS ✓';
-  } else {
-    btn.style.borderColor = '';
-    btn.style.color = '';
-    btn.textContent = '⚙ GAS設定';
-  }
-}
 
 // ══ MEMBERS（localStorage管理） ══
 const DEFAULT_MEMBERS = [];
@@ -1577,8 +1465,6 @@ function renderNewsItems(){
     </a>`;
   }).join('');
 }
-function pad(n){return String(n).padStart(2,'0')}
-function fmt(d){return`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
 
 // ══ VIEW MODE（チーム／個人） ══
 let viewMode = 'team'; // 'team' | 'personal'
@@ -1694,17 +1580,6 @@ async function fetchTodayGcal(){
   }
 }
 
-// UTC ISO形式の日時文字列をJSTのHH:MM形式に変換
-function toJstTime(isoStr){
-  if(!isoStr) return '';
-  try {
-    const d = new Date(isoStr);
-    return d.toLocaleTimeString('ja-JP', {
-      hour: '2-digit', minute: '2-digit',
-      timeZone: 'Asia/Tokyo'
-    });
-  } catch(e) { return isoStr; }
-}
 
 function renderGcalList(events){
   const el = document.getElementById('gcal-list');
@@ -1860,18 +1735,6 @@ function saveGasFromSettings(){
   toast(url?'✅ GAS URLを保存しました':'🔌 GAS URLをリセットしました');
 }
 
-// 設定画面のGAS状態バッジ更新
-function updateGasStatusBadge(){
-  const badge = document.getElementById('gas-status-badge');
-  if(!badge) return;
-  if(isGasEnabled()){
-    badge.textContent = '✓ 連携済み';
-    badge.style.cssText = 'font-size:10px;font-family:var(--mono);padding:2px 8px;border-radius:10px;font-weight:700;background:var(--green-light);color:var(--green)';
-  } else {
-    badge.textContent = '未設定';
-    badge.style.cssText = 'font-size:10px;font-family:var(--mono);padding:2px 8px;border-radius:10px;font-weight:700;background:var(--yellow-light);color:var(--yellow)';
-  }
-}
 
 // GASコードをクリップボードにコピー
 const GAS_CODE_FOR_COPY = `// ============================================================
@@ -1899,17 +1762,6 @@ function getCatPrefix(cat) {
   return map[cat] || '【その他】';
 }
 
-// 土日・祝日判定（日本の祝日カレンダーを参照）
-function isHolidayOrWeekend(date) {
-  var day = date.getDay();
-  if (day === 0 || day === 6) return true;
-  var calHoliday = CalendarApp.getCalendarById('ja.japanese#holiday@group.v.calendar.google.com');
-  if (calHoliday) {
-    var events = calHoliday.getEventsForDay(date);
-    if (events.length > 0) return true;
-  }
-  return false;
-}
 
 // 指定日の前営業日を返す（土日祝をスキップ）
 function getPrevBizDay(date) {
@@ -3266,22 +3118,6 @@ function _saveTasksLocal(){ localStorage.setItem('roumu_team_tasks', JSON.string
 function _saveMembersLocal(){ localStorage.setItem('team_members', JSON.stringify(MEMBERS)); }
 function _saveAnnualLocal(){ localStorage.setItem('annual_projects', JSON.stringify(annualProjects)); }
 
-// ── 追加・編集用：3秒デバウンスでアップロード ──
-function scheduleAutoSync() {
-  if (!isGasEnabled()) return;
-  if (_isSyncing) return;
-  // トークンが未取得の場合はスキップ（ログイン直後の誤同期防止）
-  if (!gAccessToken) return;
-  clearTimeout(_autoSyncTimer);
-  _autoSyncTimer = setTimeout(async () => {
-    if (_isSyncing) return;
-    if (!gAccessToken) return; // タイマー実行時も再チェック
-    // 直近2.5秒以内に別の同期が完了していれば重複送信を回避
-    if (Date.now() - _lastUploadTs < 2500) return;
-    _autoSyncTimer = null; // タイマークリア
-    await _doUpload();
-  }, 3000);
-}
 
 // ── 削除用：即時アップロード（デバウンスなし）──
 async function immediateSync() {
@@ -3312,35 +3148,6 @@ async function _doUpload() {
   }
 }
 
-// ── 30秒ごとの自動ダウンロード（相手の更新を取得）──
-function startAutoPoll() {
-  if (_autoPollTimer) return; // 二重起動防止
-  _autoPollTimer = setInterval(async () => {
-    if (!isGasEnabled() || _isSyncing) return;
-    // BUG-01: モーダルが開いている場合は自動取得をスキップ（入力中のデータ保護）
-    // タスク編集モーダル・コメント入力・その他全モーダルをチェック
-    if (document.querySelector('.modal-overlay.open')) return;
-    // コメント入力エリアにフォーカスがある場合もスキップ
-    const activeEl = document.activeElement;
-    if (activeEl && (activeEl.id === 'cm-input' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'INPUT')) return;
-    try {
-      const gasUrl = getGasUrl();
-      const qs = 'action=load'
-        + (gAccessToken ? '&token=' + encodeURIComponent(gAccessToken) : '');
-      const res = await fetch(gasUrl + '?' + qs, { redirect: 'follow' });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.error) return;
-      // serverTsが変わっていれば反映（変わっていなければスキップ）
-      const stored = localStorage.getItem('roumu_server_ts') || '';
-      if (data.serverTs && data.serverTs === stored) return;
-      if (data.serverTs) { _serverTs = data.serverTs; localStorage.setItem('roumu_server_ts', _serverTs); }
-      applyLoadedData(data);
-      renderAll();
-      setSyncStatus('↓ ' + new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}) + ' 自動取得済');
-    } catch(e) { /* ネットワークエラーは無視 */ }
-  }, 30000); // 30秒ごと
-}
 
 function saveTasks(){
   localStorage.setItem('roumu_team_tasks',JSON.stringify(tasks));
@@ -3379,20 +3186,6 @@ function clock(){
   tick();setInterval(tick,1000);
 }
 
-// ══ USER SELECT ══
-function renderUserSelect(){
-  const uoEl = document.getElementById('user-options');
-  if(!uoEl) return;
-  uoEl.innerHTML=MEMBERS.map(m=>`
-    <div class="user-option" onclick="startPinLogin('${m.id}')">
-      <div class="user-option-avatar" style="background:${m.color}">${m.initial}</div>
-      <div>
-        <div class="user-option-name">${m.name}</div>
-        <div class="user-option-role">${m.pin?'':' <span style="font-size:10px;color:var(--yellow);font-weight:600">PIN未設定</span>'}</div>
-      </div>
-      ${m.pin?'<span style="margin-left:auto;font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:6px;background:var(--green-light);color:var(--green);font-weight:700">🔒</span>':'<span style="margin-left:auto;font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:6px;background:var(--yellow-light);color:var(--yellow);font-weight:700">—</span>'}
-    </div>`).join('');
-}
 
 // PINログイン状態
 let _pinTargetId = null;
@@ -3457,41 +3250,6 @@ async function checkPin(){
   }
 }
 
-function doLogin(id){
-  currentUser = MEMBERS.find(m=>m.id===id);
-  document.getElementById('user-select-modal').classList.remove('open');
-  // Googleアバターが設定済みの場合は名前・アバターをGoogleアカウントのものを使う
-  const gAvatar = document.getElementById('google-avatar');
-  const isGoogleLogin = gAvatar && gAvatar.src && gAvatar.style.display !== 'none';
-  if (!isGoogleLogin) {
-    document.getElementById('current-name').textContent = currentUser.name;
-    const avatarEl = document.getElementById('current-avatar');
-    if (avatarEl) {
-      avatarEl.textContent = currentUser.initial;
-      avatarEl.style.background = currentUser.color;
-      avatarEl.style.display = 'flex';
-    }
-  }
-  renderAll();
-  checkAlerts();
-  // ログイン時にGASから最新データを取得して反映
-  if(isGasEnabled()){
-    setSyncStatus('⏳ データ取得中...');
-    fetch(getGasUrl()+'?action=load'+(gAccessToken?'&token='+encodeURIComponent(gAccessToken):''), {redirect:'follow'})
-      .then(r=>r.json())
-      .then(data=>{
-        if(data && !data.error){
-          if(data.serverTs){ _serverTs=data.serverTs; localStorage.setItem('roumu_server_ts',_serverTs); }
-          applyLoadedData(data);
-          renderAll();
-          setSyncStatus('✅ ' + new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}) + ' 取得完了');
-        }
-      })
-      .catch(()=>setSyncStatus('⚠ データ取得失敗'));
-    fetchTodayGcal();
-    startAutoPoll();
-  }
-}
 
 function backToMemberSelect(){
   _pinTargetId = null;
@@ -3737,30 +3495,6 @@ async function syncData(silent=false, uploadOnly=false){
   }
 }
 
-// applyLoadedData: GASから取得したデータをローカルに反映するヘルパー
-// ※ 内部保存関数(_saveXxxLocal)を使用してscheduleAutoSyncの発火を防ぐ
-function applyLoadedData(data){
-  if(data.tasks){
-    // IDを文字列に統一してから保存
-    tasks = data.tasks.map(t => ({ ...t, id: String(t.id) }));
-    _saveTasksLocal();
-  }
-  // 個人タスクはlocalStorageのみ管理（GAS同期なし）
-  if(data.members && data.members.length){
-    MEMBERS = data.members.map(m => ({ ...m, id: String(m.id) }));
-    _saveMembersLocal();
-    // BUG-05: MEMBERSが更新されたらcurrentUserを再取得（null参照防止）
-    if(currentUser){
-      currentUser = MEMBERS.find(m => m.id === currentUser.id) || currentUser;
-    }
-    renderMemberList(); populateAssigneeSelects(); renderUserSelect();
-  }
-  if(data.meta){ applyMeta(data.meta); }
-  if(data.leaveRecords){ leaveRecords=data.leaveRecords; saveLeaveRecords(); if(majorCat==='sankyuiku') renderLeaveGantt(); }
-  if(data.leaveChecklists){ leaveChecklistPersons=data.leaveChecklists; saveLeaveChecklistPersons(); if(majorCat==='sankyuiku') renderLeaveChecklist(); }
-  if(data.onboardingPersons){ onboardingPersons=data.onboardingPersons; saveOnboardingPersons(); if(majorCat==='nyutai') renderOnboarding(); }
-  if(data.topicItems && data.topicItems.length){ applyAllTopicItems(data.topicItems); }
-}
 
 // トピック全月分のデータを取得
 function getAllTopicItems(){
@@ -8074,29 +7808,6 @@ function updateScopeStyle(){
     : '🌐 全員のチームビューに表示されます';
 }
 
-// 当月のN営業日目の日付を返す
-function getNthBusinessDayOfMonth(n, year, month){
-  // year・monthが省略された場合は当月
-  const now = new Date();
-  const y = year !== undefined ? year : now.getFullYear();
-  const m = month !== undefined ? month : now.getMonth(); // 0-indexed
-  let d = new Date(y, m, 1); // 月初
-  d.setHours(0,0,0,0);
-  let count = 0;
-  while(true){
-    if(isBusinessDay(d)){
-      count++;
-      if(count === n) return new Date(d);
-    }
-    d.setDate(d.getDate()+1);
-    // 月を超えたら翌月で続ける（月末超過の場合）
-    if(d.getMonth() !== m && count < n){
-      // 翌月にはみ出た場合は翌月の残り日数で処理
-    }
-    if(d.getFullYear() > y + 1) break; // 無限ループ防止
-  }
-  return d;
-}
 
 // date+timeを結合してf-dueに同期
 
@@ -8756,26 +8467,6 @@ function renderMemberStats(){
   }).join('');
 }
 
-// ══ ICS ══
-function makeIcs(list){
-  const rows=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//労務管理チームツール//JP','CALSCALE:GREGORIAN','METHOD:PUBLISH'];
-  list.forEach(t=>{
-    if(t.status==='done'||!t.due)return;
-    const ds=t.due.replace(/-/g,''),d=new Date(t.due);d.setDate(d.getDate()+1);
-    const de=fmt(d).replace(/-/g,'');
-    const now=new Date().toISOString().replace(/[-:]/g,'').split('.')[0]+'Z';
-    const cat=CAT_LABELS[t.cat]||'労務';
-    const member=MEMBERS.find(m=>m.id===t.assignee);
-    const desc=(t.note||'')+(member?`\n担当: ${member.name}`:'')+(t.link?`\nリンク: ${t.link}`:'');
-    rows.push('BEGIN:VEVENT',`UID:roumu-team-${t.id}@task`,`DTSTAMP:${now}`,`DTSTART;VALUE=DATE:${ds}`,`DTEND;VALUE=DATE:${de}`,`SUMMARY:【${cat}】${t.title}`);
-    if(desc)rows.push(`DESCRIPTION:${desc.replace(/\n/g,'\\n')}`);
-    if(t.remind)rows.push('BEGIN:VALARM','ACTION:DISPLAY',`DESCRIPTION:${t.title}`,`TRIGGER:-P${t.remind}D`,'END:VALARM');
-    rows.push('END:VEVENT');
-  });
-  rows.push('END:VCALENDAR');
-  return rows.join('\r\n');
-}
-function dlIcs(c,n){const b=new Blob([c],{type:'text/calendar;charset=utf-8'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);}
 function exportAllIcs(){const p=tasks.filter(t=>t.status!=='done'&&t.due);if(!p.length){toast('⚠ 対象タスクなし',true);return;}dlIcs(makeIcs(p),'roumu-team-all.ics');toast(`📅 ${p.length}件を書き出しました`);}
 function exportMonthIcs(){const m=`${T.getFullYear()}-${pad(T.getMonth()+1)}`,l=tasks.filter(t=>t.status!=='done'&&t.due&&t.due.startsWith(m));if(!l.length){toast('⚠ 今月のタスクなし',true);return;}dlIcs(makeIcs(l),`roumu-team-${m}.ics`);toast(`📅 今月分${l.length}件を書き出しました`);}
 function exportSingleIcs(id){event.stopPropagation();const t=tasks.find(t=>String(t.id)===String(id));if(!t?.due){toast('⚠ 期限日が未設定です',true);return;}dlIcs(makeIcs([t]),`roumu-team-${t.id}.ics`);toast('📅 カレンダーに追加しました');}
@@ -9268,11 +8959,6 @@ function importCsv(){
   toast(`✅ ${tasks.length}件のタスクを取り込みました`);
 }
 
-// ══ SYNC STATUS ══
-function setSyncStatus(msg){
-  const el=document.getElementById('sync-status');
-  if(el)el.textContent=msg;
-}
 
 // ══ TEMPLATES ══
 let templates=JSON.parse(localStorage.getItem('roumu_templates')||'[]');
