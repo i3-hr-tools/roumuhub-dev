@@ -1,5 +1,9 @@
 // ══ 共通ユーティリティ関数 ══
 
+function pad(n) {
+  return n < 10 ? '0' + n : '' + n;
+}
+
 function escHtml(str) {
   if (str == null) return '';
   return String(str)
