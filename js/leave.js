@@ -448,10 +448,10 @@ function renderLeaveGantt(){
           <span style="font-size:11px;font-family:var(--mono);padding:1px 8px;border-radius:10px;background:var(--surface);border:1px solid var(--border);color:var(--text2)">${leaveRecords.length}名</span>
           <!-- ビュー切替 -->
           <div style="display:flex;gap:3px;margin-left:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:2px">
-            <button onclick="setLeaveView('gantt')" id="lv-gantt"
-              style="padding:4px 10px;border-radius:6px;border:none;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font);background:var(--accent);color:#fff;transition:all .12s">📊 ガント</button>
             <button onclick="setLeaveView('table')" id="lv-table"
-              style="padding:4px 10px;border-radius:6px;border:none;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font);background:transparent;color:var(--text2);transition:all .12s">📋 テーブル</button>
+              style="padding:4px 10px;border-radius:6px;border:none;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font);background:${leaveView==='table'?'var(--accent)':'transparent'};color:${leaveView==='table'?'#fff':'var(--text2)'};transition:all .12s">📋 テーブル</button>
+            <button onclick="setLeaveView('gantt')" id="lv-gantt"
+              style="padding:4px 10px;border-radius:6px;border:none;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font);background:${leaveView==='gantt'?'var(--accent)':'transparent'};color:${leaveView==='gantt'?'#fff':'var(--text2)'};transition:all .12s">📊 ガント</button>
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
@@ -464,7 +464,7 @@ function renderLeaveGantt(){
       </div>
 
       <!-- チャート本体 -->
-      <div id="leave-gantt-body" style="overflow-x:auto">
+      <div id="leave-gantt-body" style="overflow-x:auto;display:${leaveView==='table'?'none':''}">
         <div style="min-width:${totalW}px">
           <!-- 年ラベル行（年またぎの場合のみ） -->
           ${monthList[0].year !== monthList[MONTHS-1].year ? `
@@ -499,10 +499,11 @@ function renderLeaveGantt(){
         </div>
       </div>
       <!-- テーブル表示 -->
-      <div id="leave-table-body" style="display:none"></div>
+      <div id="leave-table-body" style="display:${leaveView==='table'?'':'none'}"></div>
     </div>
 
   `;
+  if(leaveView==='table') renderLeaveTable();
 }
 
 function renderLeaveRow(r, idx, monthList, COL_EMP, COL_NAME, COL_DEPT, COL_MONTH, now){
