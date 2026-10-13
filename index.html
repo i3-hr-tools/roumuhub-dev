@@ -1935,7 +1935,7 @@ function upsertTaskCalendar(task, member) {
       'カテゴリ: ' + (task.cat || ''),
       'ステータス: ' + (task.status || ''),
       '担当: ' + (member.name || ''),
-    ].filter(Boolean).join('\n');
+    ].filter(Boolean).join(String.fromCharCode(10));
     if (existing.length > 0) {
       var ev = existing[0];
       ev.setTitle(title);
