@@ -168,8 +168,15 @@ function renderMemberList(){
 function setMemberFilt(id,el){
   memberFilt=id;
   document.querySelectorAll('.member-item').forEach(i=>i.classList.remove('active'));
-  el.classList.add('active');
+  // テーブル表示の担当者名クリックなど、サイドバーの要素を介さず呼ばれる場合はelがない
+  if(el) el.classList.add('active');
+  else {
+    const match=[...document.querySelectorAll('.member-item')].find(i=>i.getAttribute('onclick')?.includes(`'${id}'`));
+    if(match) match.classList.add('active');
+  }
   renderTasks();
+  // テーブル表示の担当者欄をクリックした場合は「すべて」ビューに戻り、該当担当者のタスクを確実に見せる
+  if(view!=='all'){ view='all'; overdueFilter=false; renderTasks(); }
 }
 
 function getCheckedIds(){
@@ -905,7 +912,7 @@ function renderTaskTable(list){
         ${!isChild?`<span style="font-size:11px;padding:2px 8px;border-radius:8px;background:var(--surface2);color:var(--text2);border:1px solid var(--border)">${CAT_LABELS[t.cat]||t.cat||'-'}</span>`:''}
       </td>
       <td style="padding:${isChild?'6px 8px':'8px 12px'};white-space:nowrap">
-        ${member?`<div style="display:flex;align-items:center;gap:5px">
+        ${member?`<div onclick="event.stopPropagation();setMemberFilt('${member.id}')" title="${escHtml(member.name)}のタスクのみ表示" style="display:flex;align-items:center;gap:5px;cursor:pointer;width:fit-content" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
           <span style="width:${isChild?'16px':'20px'};height:${isChild?'16px':'20px'};border-radius:50%;background:${member.color};display:flex;align-items:center;justify-content:center;font-size:${isChild?'9px':'10px'};font-weight:800;color:#fff;flex-shrink:0">${member.initial}</span>
           <span style="font-size:${isChild?'11px':'12px'}">${member.name}</span>
         </div>`:'<span style="color:var(--text3)">-</span>'}

@@ -1,5 +1,8 @@
 // ══ 休暇管理機能（産休・育休・休職・ガントチャート） ══
 
+// 「完了済み」セクションの開閉状態（画面を離れるとリセットされる一時的な状態）
+let leaveChecklistShowDone = false;
+
 function setLeaveView(v){
   leaveView = v;
   ['gantt','table'].forEach(id=>{
@@ -180,11 +183,24 @@ function getChecklistItems(type, listKind){
 
 function saveLeaveChecklistPersons(){ localStorage.setItem('leave_checklist_persons', JSON.stringify(leaveChecklistPersons)); }
 
+// 全項目チェック済みの対象者を「完了済み」として判定する（自動で一覧から畳む）
+function isLeaveChecklistComplete(p){
+  const mk = LEAVE_TYPE_TO_MASTER[p.type] || 'kyushoku';
+  const items = getMasterItems(mk);
+  const state = p.checks || {};
+  const doneCount = items.filter((_,i)=>state[i]).length;
+  return items.length>0 && doneCount===items.length;
+}
+
 function renderLeaveChecklist(){
   const el = document.getElementById('leave-checklist-area');
   if(!el) return;
   // 産休・育休・休職を1つの「休職用マスタ(kyushoku)」に共通化。種別はバッジで識別
-  const persons = leaveChecklistPersons;
+  const allPersons = leaveChecklistPersons;
+  // 全項目完了した対象者は自動的にメイン一覧から外し、下の「完了済み」に畳んでおく
+  const persons = allPersons.filter(p => !isLeaveChecklistComplete(p));
+  const completedPersons = allPersons.filter(p => isLeaveChecklistComplete(p));
+
   const section = `<div style="background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow-sm)">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface2);border-bottom:1px solid var(--border)">
       <span style="font-size:14px;font-weight:700">🤱 産休・育休・パパ育休・休職 チェックリスト</span>
@@ -201,13 +217,28 @@ function renderLeaveChecklist(){
     </div>
   </div>`;
 
+  const completedSection = completedPersons.length ? `<div style="margin-top:10px">
+    <div onclick="toggleLeaveChecklistDoneSection()" style="cursor:pointer;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);font-weight:700;padding:4px 2px">
+      <span id="lc-done-arrow">${leaveChecklistShowDone?'▲':'▼'}</span> ✅ 完了済み（${completedPersons.length}件）
+    </div>
+    <div id="lc-done-list" style="display:${leaveChecklistShowDone?'block':'none'};margin-top:6px">
+      ${completedPersons.map(p => renderLeaveChecklistCard(p)).join('')}
+    </div>
+  </div>` : '';
+
   el.innerHTML = `
     <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px">
       ✅ 対応チェックリスト
     </div>
     <div style="margin-bottom:16px">
       ${section}
+      ${completedSection}
     </div>`;
+}
+
+function toggleLeaveChecklistDoneSection(){
+  leaveChecklistShowDone = !leaveChecklistShowDone;
+  renderLeaveChecklist();
 }
 
 function renderLeaveChecklistCard(p){
