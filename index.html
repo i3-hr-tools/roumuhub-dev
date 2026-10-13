@@ -1642,30 +1642,90 @@ function saveGasFromSettings(){
 
 // GASコードをクリップボードにコピー
 const GAS_CODE_FOR_COPY = `// ============================================================
-//  労務管理チームツール — GAS バックエンド v4.3
-//  変更点:
-//    - saveSh() に楽観的ロック（lastSaved タイムスタンプ比較）を追加
-//    - saveAll で serverTs を返し、HTML 側が次回送信時に使用
-//    - 入力バリデーション（tasks 配列の必須項目チェック）を追加（v4.1から）
-//    - topicItems シート名引数欠落バグを修正（v4.1から）
+//  i3 RomuHub — GAS バックエンド v4.10
+//  Google Workspace連携版
+//  3名のみアクセス許可（メールアドレスで制御）
+//  v4.10: カレンダー同期タイトルの【】重複を修正
+//        （タスク名が既に【種別】から始まる場合は接頭辞を付けない）
 // ============================================================
 
+// ▼ アクセスを許可する3名のGmailアドレスを設定してください
+var ALLOWED_EMAILS = [
+  'ai.tajiri@i3-systems.com',
+  'h.kimura@i3-systems.com',
+  'm.yamamoto@i3-systems.com'
+];
 
-var SHEET_TASKS   = 'tasks';
+// アクセス制御チェック（Tokeninfo APIによるサーバー側検証）
+// トークンがある場合はGoogleのTokeninfo APIで検証（推奨）
+// トークンがない場合はSession.getActiveUser()でフォールバック
+function checkAccess(token) {
+  // トークンがある場合はTokeninfo APIで厳格に検証
+  if (token) {
+    try {
+      var res = UrlFetchApp.fetch(
+        'https://oauth2.googleapis.com/tokeninfo?access_token=' + token,
+        { muteHttpExceptions: true }
+      );
+      var info = JSON.parse(res.getContentText());
+      if (!info.error) {
+        var email = info.email || '';
+        if (email && ALLOWED_EMAILS.indexOf(email) !== -1) {
+          return email; // トークン検証成功
+        }
+        if (email && ALLOWED_EMAILS.indexOf(email) === -1) {
+          throw new Error('アクセス権限がありません');
+        }
+      }
+      // トークンが無効または期限切れの場合はSession.getActiveUser()にフォールバック
+    } catch(e) {
+      if (e.message === 'アクセス権限がありません') throw e;
+      // その他のエラーはフォールバックへ
+    }
+  }
+  // Session.getActiveUser()で試みる（トークンなし・無効時のフォールバック）
+  var sessionEmail = Session.getActiveUser().getEmail();
+  if (sessionEmail && ALLOWED_EMAILS.indexOf(sessionEmail) !== -1) {
+    return sessionEmail;
+  }
+  // どちらも取得できない場合はアクセス拒否
+  throw new Error('認証情報がありません。Googleログインが必要です');
+}
+
+var SHEET_TASKS         = 'tasks';
+var SHEET_PRIVATE_TASKS = 'privateTasks'; // 個人タスク用シート
 var SHEET_MEMBERS = 'members';
 var SHEET_META    = 'meta';
 var SHEET_LOCK    = 'sync_lock';
 
+// カテゴリ別カレンダータイトルプレフィックス
+var CAT_PREFIX = {
+  kyuyo:     '【給与計算】',
+  sankyuiku: '【産休・育休・休職】',
+  nyutai:    '【入社・退職】',
+  other:     '【その他】'
+};
 function getCatPrefix(cat) {
-  var map = {
-    'kyuyo':     '【給与計算】',
-    'sankyuiku': '【産休・育休・休職】',
-    'nyutai':    '【入社・退職】',
-    'other':     '【その他】'
-  };
-  return map[cat] || '【その他】';
+  return CAT_PREFIX[cat] || '【その他】';
 }
 
+// タスク名がすでに「【種別】」から始まっている場合（休職・新人オンボーディング等の
+// 自動生成タスク）は、カレンダー同期時にカテゴリ接頭辞を二重に付けない
+function buildCalendarTitle(task) {
+  return /^【/.test(task.title) ? task.title : (getCatPrefix(task.cat) + task.title);
+}
+
+// 土日・祝日判定（日本の祝日カレンダーを参照）
+function isHolidayOrWeekend(date) {
+  var day = date.getDay();
+  if (day === 0 || day === 6) return true;
+  var calHoliday = CalendarApp.getCalendarById('ja.japanese#holiday@group.v.calendar.google.com');
+  if (calHoliday) {
+    var events = calHoliday.getEventsForDay(date);
+    if (events.length > 0) return true;
+  }
+  return false;
+}
 
 // 指定日の前営業日を返す（土日祝をスキップ）
 function getPrevBizDay(date) {
@@ -1677,79 +1737,94 @@ function getPrevBizDay(date) {
   return d;
 }
 
-// 前営業日の午前9時のリマインダー分数を計算
+// 3営業日前を返す（土日祝をスキップして3日遡る）
 function get3BizDaysAgo(date) {
   var d = new Date(date);
   var count = 0;
   while (count < 3) {
     d.setDate(d.getDate() - 1);
-    if (!isHolidayOrWeekend(d)) { count++; }
+    if (!isHolidayOrWeekend(d)) {
+      count++;
+    }
   }
   return d;
 }
+
+// ① 3営業日前の午前9:00のリマインダー分数を計算
 function calc3BizDaysAgo9amMins(dueDate) {
   var target = get3BizDaysAgo(dueDate);
   var dueMidnightJst = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate(), 0, 0, 0);
   var target9amJst   = new Date(target.getFullYear(), target.getMonth(), target.getDate(), 9, 0, 0);
   var mins = Math.round((dueMidnightJst.getTime() - target9amJst.getTime()) / 60000);
-  return mins > 0 ? mins : 1;
+  return mins > 0 ? mins : 1; // 安全弁：負の値・0を防止（最低1分）
 }
+
+// ② 前営業日の午後15:00のリマインダー分数を計算
 function calcPrevBizDay3pmMins(dueDate) {
   var target = getPrevBizDay(dueDate);
   var dueMidnightJst = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate(), 0, 0, 0);
   var target3pmJst   = new Date(target.getFullYear(), target.getMonth(), target.getDate(), 15, 0, 0);
   var mins = Math.round((dueMidnightJst.getTime() - target3pmJst.getTime()) / 60000);
-  return mins > 0 ? mins : 1;
+  return mins > 0 ? mins : 1; // 安全弁：負の値・0を防止（最低1分）
 }
-
-// ── エントリーポイント ─────────────────────────────────────────
 
 function doGet(e) {
   try {
     var p = (e && e.parameter) ? e.parameter : {};
     var a = p.action || '';
-    return dispatch(a, p);
+
+    // actionパラメータがある場合はAPIとして処理
+    if (a) return dispatch(a, p);
+
+    // actionがない場合はHTMLアプリを返す
+    return HtmlService.createHtmlOutputFromFile('index')
+      .setTitle('i3 RomuHub')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
+
   } catch(err) {
-    return j({ error: 'doGet error: ' + err.message });
+    return j({ error: 'リクエストエラー' });
   }
 }
 
 function doPost(e) {
   try {
-    var p = (e && e.parameter) ? e.parameter : {};
-    var a = p.action || '';
-    if (a) return dispatch(a, p);
-    if (e && e.postData && e.postData.contents) {
-      var b = JSON.parse(e.postData.contents);
-      return dispatch(b.action || '', b);
+    var p = {};
+    // FormData形式（HTMLのfetch+FormDataから送信）
+    if (e && e.parameter && Object.keys(e.parameter).length > 0) {
+      p = e.parameter;
     }
-    return j({ error: 'no action' });
+    // JSON形式（postData.contents）
+    else if (e && e.postData && e.postData.contents) {
+      try { p = JSON.parse(e.postData.contents); } catch(x) { p = {}; }
+    }
+    var a = p.action || '';
+    if (!a) return j({ error: 'no action', received: JSON.stringify(p).slice(0,200) });
+    return dispatch(a, p);
   } catch(err) {
-    return j({ error: 'doPost error: ' + err.message });
+    return j({ error: 'リクエストエラー' });
   }
 }
 
-// ── ディスパッチ ──────────────────────────────────────────────
-
 function dispatch(action, p) {
 
-  // ── ping（認証不要） ──────────────────────────────────────
+  // ping（認証不要）
   if (action === 'ping') {
-    return j({ ok: true, version: '4.3', ts: new Date().toISOString() });
+    return j({ ok: true, version: '4.10', ts: new Date().toISOString() });
   }
 
-  // ── load ──────────────────────────────────────────────────
+  // load
   if (action === 'load') {
-    return j(loadAll());
+    var callerEmail = checkAccess(p.token || '');
+    return j(loadAll(callerEmail !== 'unknown' ? callerEmail : (p.ownerEmail || '')));
   }
 
-  // ── saveAll ───────────────────────────────────────────────
+  // saveAll
   if (action === 'saveAll') {
-    // 楽観的ロック: クライアントが持っている serverTs と現在の値を比較
+    checkAccess(p.token || '');
     var clientTs = p.serverTs || '';
     var lockCheck = checkLock(clientTs);
     if (!lockCheck.ok) {
-      // 競合: 別の人が先に保存しているため拒否
       return j({
         error:     'conflict',
         serverTs:  lockCheck.serverTs,
@@ -1757,7 +1832,7 @@ function dispatch(action, p) {
       });
     }
 
-    // バリデーション: tasks 配列の必須項目チェック
+    // バリデーション: catとstatusが不正な場合は自動補完（エラーにしない）
     if (p.tasks) {
       var tasksArr = parseParam(p.tasks);
       if (Array.isArray(tasksArr)) {
@@ -1766,24 +1841,34 @@ function dispatch(action, p) {
           if (!t.id || typeof t.title !== 'string' || t.title.trim() === '') {
             return j({ error: 'validation: tasks[' + i + '] に id または title がありません' });
           }
+          // statusが不正な場合はtodoに自動補完
           if (['todo','inprogress','review','done'].indexOf(t.status) === -1) {
-            return j({ error: 'validation: tasks[' + i + '] の status が不正です: ' + t.status });
+            t.status = 'todo';
           }
+          // catが未設定・不正な場合はotherに自動補完
           if (['kyuyo','sankyuiku','nyutai','other'].indexOf(t.cat) === -1) {
-            return j({ error: 'validation: tasks[' + i + '] の cat が不正です: ' + t.cat });
+            t.cat = 'other';
           }
-          // 文字長チェック
           if (t.title.length > 200) {
             return j({ error: 'validation: tasks[' + i + '] の title が200文字を超えています' });
           }
           if (t.note && t.note.length > 2000) {
             return j({ error: 'validation: tasks[' + i + '] の note が2000文字を超えています' });
           }
+          // 日時逆転チェック：開始日時 > 期限日時の場合は自動修正（開始日時をクリア）
+          if (t.start && t.due) {
+            var startDt = new Date(t.start);
+            var dueDt   = new Date(t.due);
+            if (!isNaN(startDt.getTime()) && !isNaN(dueDt.getTime()) && startDt > dueDt) {
+              t.start = ''; // データ破損防止：逆転している場合は開始日時をクリア
+            }
+          }
         }
+        p.tasks = JSON.stringify(tasksArr);
       }
     }
 
-    // メンバーバリデーション（名前の存在チェック）
+    // メンバーバリデーション
     if (p.members) {
       var membersArr = parseParam(p.members);
       if (Array.isArray(membersArr)) {
@@ -1799,49 +1884,56 @@ function dispatch(action, p) {
       }
     }
 
-    // データ保存
     if (p.tasks)             saveSh(SHEET_TASKS,        parseParam(p.tasks));
     if (p.members)           saveSh(SHEET_MEMBERS,      parseParam(p.members));
     if (p.meta)              saveSh(SHEET_META,         parseParam(p.meta));
     if (p.leaveRecords)      saveSh('leaveRecords',     parseParam(p.leaveRecords));
     if (p.leaveChecklists)   saveSh('leaveChecklists',  parseParam(p.leaveChecklists));
     if (p.onboardingPersons) saveSh('onboardingPersons',parseParam(p.onboardingPersons));
-    if (p.topicItems)        saveSh('topicItems',       parseParam(p.topicItems));  // ← バグ修正: 第1引数を追加
+    if (p.topicItems)        saveSh('topicItems',       parseParam(p.topicItems));
+    // 個人タスクの保存（ownerEmailでフィルタして保存）
+    if (p.privateTasks) {
+      var allPrivate = parseParam(p.privateTasks) || [];
+      savePrivateTasksForUser(allPrivate, p.ownerEmail || '');
+    }
 
-    // ロックタイムスタンプを更新して返す
     var newTs = updateLock(p.updatedBy || '');
     return j({ ok: true, serverTs: newTs });
   }
 
-  // ── save（tasks のみ保存） ─────────────────────────────────
+  // save（tasksのみ）
   if (action === 'save') {
     checkAccess(p.token || '');
     saveSh(SHEET_TASKS, parseParam(p.tasks) || []);
     return j({ ok: true });
   }
 
-  // ── カレンダー操作 ────────────────────────────────────────
+  // カレンダー操作
   if (action === 'upsertTaskCalendar') {
+    checkAccess(p.token || '');
     var task   = parseParam(p.task)   || {};
     var member = parseParam(p.member) || {};
     return j(upsertTaskCalendar(task, member));
   }
 
   if (action === 'deleteTaskCalendar') {
+    checkAccess(p.token || '');
     var member = parseParam(p.member) || {};
     return j(deleteTaskCalendar(p.taskId, p.taskTitle, member));
   }
 
   if (action === 'syncCalendar') {
+    checkAccess(p.token || '');
     var tasks = parseParam(p.tasks) || [];
     return j(syncCal(p.memberId, p.email, p.calendarId || 'primary', tasks));
   }
 
   if (action === 'calendar') {
+    checkAccess(p.token || '');
     return j(getCalEvents(p.date || today(), p.calendarId || 'primary', p.email || ''));
   }
 
-  // ── ニュース取得 ──────────────────────────────────────────
+  // ニュース取得（認証不要）
   if (action === 'news') {
     return j(fetchAllNews());
   }
@@ -1849,40 +1941,18 @@ function dispatch(action, p) {
   return j({ error: 'unknown action: ' + action });
 }
 
-// ── 楽観的ロック ──────────────────────────────────────────────
-
-/**
- * ロックシートから現在の serverTs を読み出し、
- * クライアントが送ってきた clientTs と比較する。
- *
- * @param {string} clientTs - HTML 側が保持している最終同期タイムスタンプ
- * @returns {{ ok: boolean, serverTs: string, updatedBy: string }}
- */
+// 楽観的ロック
 function checkLock(clientTs) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(SHEET_LOCK);
-  if (!sh) {
-    // シートがなければ初回：ロック競合なし
-    return { ok: true, serverTs: '', updatedBy: '' };
-  }
+  if (!sh) return { ok: true, serverTs: '', updatedBy: '' };
   var serverTs  = sh.getRange('A1').getValue() || '';
   var updatedBy = sh.getRange('B1').getValue() || '';
-
-  // clientTs が空（初回同期）はOK
   if (!clientTs) return { ok: true, serverTs: serverTs, updatedBy: updatedBy };
-
-  // serverTs が変わっていなければOK（自分が最後に保存した状態）
   if (clientTs === serverTs) return { ok: true, serverTs: serverTs, updatedBy: updatedBy };
-
-  // 不一致 → 競合
   return { ok: false, serverTs: serverTs, updatedBy: updatedBy };
 }
 
-/**
- * 保存成功後にロックタイムスタンプを更新する。
- * @param {string} updatedBy - 更新者識別子（メンバーID や名前）
- * @returns {string} 新しい serverTs
- */
 function updateLock(updatedBy) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(SHEET_LOCK);
@@ -1890,17 +1960,23 @@ function updateLock(updatedBy) {
   var newTs = new Date().toISOString();
   sh.getRange('A1').setValue(newTs);
   sh.getRange('B1').setValue(updatedBy || '');
-  sh.getRange('C1').setValue(new Date().toLocaleString('ja-JP'));  // 人が読める形式も記録
+  sh.getRange('C1').setValue(new Date().toLocaleString('ja-JP'));
   return newTs;
 }
 
-// ── データ読み書き ─────────────────────────────────────────────
-
-function loadAll() {
+// データ読み書き
+function loadAll(ownerEmail) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  // serverTs をあわせて返す
   var lockSh   = ss.getSheetByName(SHEET_LOCK);
   var serverTs = lockSh ? (lockSh.getRange('A1').getValue() || '') : '';
+  // 個人タスク：ログインユーザーのメールに一致するもののみ返す（他人のは絶対に返さない）
+  var myPrivateTasks = [];
+  if (ownerEmail) {
+    var allPrivate = loadSh(ss, SHEET_PRIVATE_TASKS) || [];
+    myPrivateTasks = allPrivate.filter(function(t) {
+      return t.ownerEmail === ownerEmail;
+    });
+  }
   return {
     tasks:             loadSh(ss, SHEET_TASKS)            || [],
     members:           loadSh(ss, SHEET_MEMBERS)          || [],
@@ -1909,8 +1985,23 @@ function loadAll() {
     leaveChecklists:   loadSh(ss, 'leaveChecklists')      || [],
     onboardingPersons: loadSh(ss, 'onboardingPersons')    || [],
     topicItems:        loadSh(ss, 'topicItems')           || [],
-    serverTs:          serverTs,  // ← 楽観的ロック用タイムスタンプ
+    privateTasks:      myPrivateTasks,
+    serverTs:          serverTs,
   };
+}
+
+// 個人タスクの保存（ownerEmailごとに上書き）
+function savePrivateTasksForUser(newTasks, ownerEmail) {
+  if (!ownerEmail) return;
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var existing = loadSh(ss, SHEET_PRIVATE_TASKS) || [];
+  // 他のユーザーの個人タスクはそのまま残す
+  var others = existing.filter(function(t) { return t.ownerEmail !== ownerEmail; });
+  // 自分の個人タスクにownerEmailを付与して保存
+  var mine = newTasks.map(function(t) {
+    return Object.assign({}, t, { ownerEmail: ownerEmail });
+  });
+  saveSh(SHEET_PRIVATE_TASKS, others.concat(mine));
 }
 
 function saveSh(name, data) {
@@ -1929,7 +2020,6 @@ function loadSh(ss, name) {
   try { return JSON.parse(v); } catch(e) { return null; }
 }
 
-// pがすでにオブジェクト/配列なら返す、文字列ならパース
 function parseParam(p) {
   if (!p) return null;
   if (typeof p === 'string') {
@@ -1938,8 +2028,7 @@ function parseParam(p) {
   return p;
 }
 
-// ── カレンダー操作 ────────────────────────────────────────────
-
+// カレンダー操作
 function upsertTaskCalendar(task, member) {
   if (!task || !task.due) return { ok: true, skipped: 'no due date' };
   if (!member || !member.calendarId) return { ok: true, skipped: 'no calendarId' };
@@ -1949,9 +2038,7 @@ function upsertTaskCalendar(task, member) {
     var dateStr = task.due.split('T')[0];
     var parts = dateStr.split('-');
     var dueDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-    // タスク名がすでに「【種別】」から始まっている場合（休職・新人オンボーディング等）は、
-    // カテゴリ接頭辞を二重に付けない
-    var title = /^【/.test(task.title) ? task.title : (getCatPrefix(task.cat) + task.title);
+    var title = buildCalendarTitle(task);
     var searchStart = new Date(dueDate); searchStart.setMonth(searchStart.getMonth() - 2);
     var searchEnd   = new Date(dueDate); searchEnd.setMonth(searchEnd.getMonth() + 2);
     var existing = cal.getEvents(searchStart, searchEnd)
@@ -1961,188 +2048,277 @@ function upsertTaskCalendar(task, member) {
       'カテゴリ: ' + (task.cat || ''),
       'ステータス: ' + (task.status || ''),
       '担当: ' + (member.name || ''),
-    ].filter(Boolean).join('\n');
+    ].filter(Boolean).join('\\n');
     if (existing.length > 0) {
       var ev = existing[0];
       ev.setTitle(title);
       ev.setAllDayDate(dueDate);
       ev.setDescription(desc);
+      ev.setVisibility(CalendarApp.Visibility.PRIVATE);
       // ダブルリマインダー: ①3営業日前9時 ②前営業日15時
       ev.removeAllReminders();
       ev.addPopupReminder(calc3BizDaysAgo9amMins(dueDate));
       ev.addPopupReminder(calcPrevBizDay3pmMins(dueDate));
-      existing.slice(1).forEach(function(e) { e.deleteEvent(); });
     } else {
       var newEv = cal.createAllDayEvent(title, dueDate, { description: desc, visibility: CalendarApp.Visibility.PRIVATE });
+      newEv.setVisibility(CalendarApp.Visibility.PRIVATE);
       newEv.setTag('roumu_task_id', String(task.id));
       // ダブルリマインダー: ①3営業日前9時 ②前営業日15時
       newEv.addPopupReminder(calc3BizDaysAgo9amMins(dueDate));
       newEv.addPopupReminder(calcPrevBizDay3pmMins(dueDate));
     }
     return { ok: true };
-  } catch(err) {
-    return { ok: false, error: err.message };
+  } catch(e) {
+    return { ok: false, error: e.message };
   }
 }
 
 function deleteTaskCalendar(taskId, taskTitle, member) {
-  if (!member || !member.calendarId) return { ok: true, skipped: 'no member' };
+  if (!member || !member.calendarId) return { ok: true, skipped: 'no calendarId' };
   try {
     var cal = getCal(member.calendarId);
-    if (!cal) return { ok: true, skipped: 'calendar not found' };
+    if (!cal) return { ok: false, error: 'calendar not found' };
     var now = new Date();
-    var searchStart = new Date(now); searchStart.setFullYear(searchStart.getFullYear() - 1);
-    var searchEnd   = new Date(now); searchEnd.setFullYear(searchEnd.getFullYear() + 1);
-    var events = cal.getEvents(searchStart, searchEnd)
+    var past = new Date(now); past.setFullYear(past.getFullYear() - 2);
+    var future = new Date(now); future.setFullYear(future.getFullYear() + 2);
+    var events = cal.getEvents(past, future)
       .filter(function(ev) { return ev.getTag('roumu_task_id') === String(taskId); });
     events.forEach(function(ev) { ev.deleteEvent(); });
     return { ok: true, deleted: events.length };
-  } catch(err) {
-    return { ok: false, error: err.message };
+  } catch(e) {
+    return { ok: false, error: e.message };
   }
 }
 
 function syncCal(memberId, email, calendarId, tasks) {
   try {
     var cal = getCal(calendarId);
-    if (!cal) return { success: false, error: 'カレンダーが見つかりません' };
-    var synced = 0;
-    tasks.forEach(function(t) {
-      if (!t.due) return;
-      var parts = t.due.split('T')[0].split('-');
-      var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-      var title = getCatPrefix(t.cat) + t.title;
-      var existing = cal.getEvents(d, new Date(d.getTime() + 86400000))
-        .filter(function(ev) { return ev.getTitle() === title; });
-      if (!existing.length) {
-        var ev = cal.createAllDayEvent(title, d, { description: t.note || '', visibility: CalendarApp.Visibility.PRIVATE });
-        ev.setTag('roumu_task_id', String(t.id));
+    if (!cal) return { ok: false, error: 'calendar not found: ' + calendarId };
+    var count = 0;
+    tasks.forEach(function(task) {
+      if (!task.due || task.status === 'done') return;
+      var dateStr = task.due.split('T')[0];
+      var parts = dateStr.split('-');
+      var dueDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+      var title = buildCalendarTitle(task);
+      var searchStart = new Date(dueDate); searchStart.setMonth(searchStart.getMonth() - 1);
+      var searchEnd   = new Date(dueDate); searchEnd.setMonth(searchEnd.getMonth() + 1);
+      var existing = cal.getEvents(searchStart, searchEnd)
+        .filter(function(ev) { return ev.getTag('roumu_task_id') === String(task.id); });
+      if (existing.length === 0) {
+        var newEv = cal.createAllDayEvent(title, dueDate, { description: task.note || '', visibility: CalendarApp.Visibility.PRIVATE });
+        newEv.setVisibility(CalendarApp.Visibility.PRIVATE);
+        newEv.setTag('roumu_task_id', String(task.id));
         // ダブルリマインダー: ①3営業日前9時 ②前営業日15時
-        ev.addPopupReminder(calc3BizDaysAgo9amMins(d));
-        ev.addPopupReminder(calcPrevBizDay3pmMins(d));
-        synced++;
+        newEv.addPopupReminder(calc3BizDaysAgo9amMins(dueDate));
+        newEv.addPopupReminder(calcPrevBizDay3pmMins(dueDate));
+        count++;
       }
     });
-    return { success: true, synced: synced };
-  } catch(err) {
-    return { success: false, error: err.message };
+    return { ok: true, synced: count };
+  } catch(e) {
+    return { ok: false, error: e.message };
   }
 }
 
 function getCalEvents(dateStr, calendarId, email) {
   try {
     var cal = getCal(calendarId);
-    if (!cal) return { error: 'カレンダーが見つかりません: ' + calendarId };
+    if (!cal) return { error: 'calendar not found: ' + calendarId };
     var parts = dateStr.split('-');
-    var s  = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 0,  0,  0);
-    var e2 = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 23, 59, 59);
-    var events = cal.getEvents(s, e2).map(function(ev) {
-      var isAll = ev.isAllDayEvent();
-      var meetUrl = null;
-      try {
-        var cd = ev.getConferenceData();
-        if (cd) {
-          var eps = cd.getEntryPoints();
-          var vep = eps.filter(function(ep){ return ep.getEntryPointType() === 'video_call'; })[0] || eps[0];
-          if (vep) meetUrl = vep.getUri();
-        }
-      } catch(e) {}
+    var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    var nextDay = new Date(d); nextDay.setDate(nextDay.getDate() + 1);
+    var events = cal.getEvents(d, nextDay).map(function(ev) {
       return {
-        title:    ev.getTitle(),
-        allDay:   isAll,
-        start:    isAll ? null : ft(ev.getStartTime()),
-        end:      isAll ? null : ft(ev.getEndTime()),
-        meetUrl:  meetUrl,
-        location: ev.getLocation() || null,
+        title: ev.getTitle(),
+        start: ev.getStartTime().toISOString(),
+        end:   ev.getEndTime().toISOString(),
+        desc:  ev.getDescription(),
       };
     });
     return { events: events };
-  } catch(err) {
-    return { error: err.message };
+  } catch(e) {
+    return { error: e.message };
   }
 }
 
-// ── ニュース取得 ──────────────────────────────────────────────
-
-function fetchAllNews() {
-  var result = [];
-  var sources = [
-    { url: 'https://roumu.com/feed',               source: '労務ドットコム' },
-    { url: 'https://www.roudoumondai.com/feed',    source: '労働問題ドットコム' },
-  ];
-  sources.forEach(function(s) {
-    try {
-      var xml  = UrlFetchApp.fetch(s.url).getContentText('UTF-8');
-      var doc  = XmlService.parse(xml);
-      var channel = doc.getRootElement().getChild('channel');
-      var items   = channel ? channel.getChildren('item') : [];
-      for (var i = 0; i < Math.min(items.length, 10); i++) {
-        var item = items[i];
-        // タイトル・URLをサニタイズ（HTMLタグ除去、最大文字長制限）
-        var rawTitle = item.getChildText('title') || '';
-        var rawUrl   = item.getChildText('link')   || '';
-        var cleanTitle = rawTitle.replace(/<[^>]+>/g, '').slice(0, 200);
-        var cleanUrl   = rawUrl.slice(0, 500);
-        result.push({
-          title:  cleanTitle,
-          url:    cleanUrl,
-          date:   item.getChildText('pubDate') || '',
-          source: s.source,
-        });
-      }
-    } catch(err) {
-      Logger.log(s.source + ' fetch error: ' + err.message);
-    }
-  });
-  result.sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
-  return { ok: true, items: result };
-}
-
-function fetchRoumuNews() {
-  return fetchAllNews();
-}
-
-// ── ユーティリティ ────────────────────────────────────────────
-
 function getCal(calendarId) {
-  return calendarId === 'primary'
-    ? CalendarApp.getDefaultCalendar()
-    : CalendarApp.getCalendarById(calendarId);
+  try {
+    if (!calendarId || calendarId === 'primary') {
+      return CalendarApp.getDefaultCalendar();
+    }
+    return CalendarApp.getCalendarById(calendarId);
+  } catch(e) { return null; }
 }
 
-function j(obj) {
-  return ContentService.createTextOutput(JSON.stringify(obj))
-    .setMimeType(ContentService.MimeType.JSON);
+// ニュース取得
+function fetchAllNews() {
+  var urls = [
+    'https://roumu.com/feed',
+    'https://www.mhlw.go.jp/rss/topics.rss',
+  ];
+  var items = [];
+  urls.forEach(function(url) {
+    try {
+      var xml = UrlFetchApp.fetch(url, { muteHttpExceptions: true }).getContentText();
+      var doc = XmlService.parse(xml);
+      var root = doc.getRootElement();
+      var ns = root.getNamespace();
+      var channel = root.getChild('channel', ns) || root;
+      var entries = channel.getChildren('item', ns);
+      if (!entries.length) entries = root.getChildren('entry');
+      entries.slice(0, 10).forEach(function(item) {
+        var title = getChildText(item, 'title');
+        var link  = getChildText(item, 'link') || getAttr(item, 'link', 'href');
+        var date  = getChildText(item, 'pubDate') || getChildText(item, 'published') || getChildText(item, 'updated');
+        if (title && link) {
+          items.push({ title: title.trim(), url: link.trim(), date: date ? date.trim() : '' });
+        }
+      });
+    } catch(e) { /* スキップ */ }
+  });
+  return { ok: true, items: items };
 }
 
-function ft(d) {
-  return ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
+function getChildText(el, name) {
+  try {
+    var c = el.getChild(name);
+    return c ? c.getText() : null;
+  } catch(e) { return null; }
+}
+
+function getAttr(el, childName, attr) {
+  try {
+    var c = el.getChild(childName);
+    return c ? c.getAttribute(attr).getValue() : null;
+  } catch(e) { return null; }
 }
 
 function today() {
   var d = new Date();
-  return d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
 }
 
-// ── 既存の[労務]イベントを一括非公開に変更 ────────────────────
-// Apps Scriptエディタで一度だけ手動実行してください
-function makeAllEventsPrivate() {
-  var cal = CalendarApp.getDefaultCalendar();
-  var now = new Date();
-  var oneYearAgo   = new Date(now.getFullYear()-1, now.getMonth(), now.getDate());
-  var oneYearLater = new Date(now.getFullYear()+1, now.getMonth(), now.getDate());
-  var events = cal.getEvents(oneYearAgo, oneYearLater);
-  var count = 0;
-  events.forEach(function(ev) {
-    if (ev.getTitle().indexOf('[労務]') === 0) {
-      ev.setVisibility(CalendarApp.Visibility.PRIVATE);
-      count++;
+function j(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// テスト用
+function testNews() {
+  Logger.log(JSON.stringify(fetchAllNews()));
+}
+
+// HTMLテンプレートのinclude関数
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+// ══════════════════════════════════════════════════
+// 自動バックアップ機能
+// GASのトリガーで毎日深夜0時に自動実行
+// 直近30日分のバックアップシートを保持
+// ══════════════════════════════════════════════════
+
+function dailyBackup() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+  var backupName = 'backup_' + today;
+
+  // すでに今日のバックアップがあればスキップ
+  if (ss.getSheetByName(backupName)) {
+    Logger.log('本日のバックアップは既に存在します: ' + backupName);
+    return;
+  }
+
+  // tasksシートをコピー
+  var tasksSh = ss.getSheetByName(SHEET_TASKS);
+  if (tasksSh) {
+    tasksSh.copyTo(ss).setName(backupName);
+    Logger.log('バックアップ作成: ' + backupName);
+  }
+
+  // 30日より古いバックアップを削除
+  var cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 30);
+  var cutoffStr = Utilities.formatDate(cutoff, 'Asia/Tokyo', 'yyyy-MM-dd');
+
+  // 削除対象を先にリストアップしてからループ外で削除（forEach中の削除エラー防止）
+  var sheetsToDelete = [];
+  ss.getSheets().forEach(function(sh) {
+    var name = sh.getName();
+    if (name.indexOf('backup_') === 0) {
+      var dateStr = name.replace('backup_', '');
+      if (dateStr < cutoffStr) {
+        sheetsToDelete.push(sh);
+      }
     }
   });
-  Logger.log('非公開に変更したイベント数: ' + count);
-  return { ok: true, updated: count };
+  sheetsToDelete.forEach(function(sh) {
+    Logger.log('古いバックアップを削除: ' + sh.getName());
+    ss.deleteSheet(sh);
+  });
 }
 
+// バックアップからデータを復元する関数
+// 引数: dateStr = 'yyyy-MM-dd' 形式の日付
+function restoreFromBackup(dateStr) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var backupName = 'backup_' + dateStr;
+  var backupSh = ss.getSheetByName(backupName);
+
+  if (!backupSh) {
+    Logger.log('バックアップが見つかりません: ' + backupName);
+    return false;
+  }
+
+  // 現在のtasksシートを退避
+  var tasksSh = ss.getSheetByName(SHEET_TASKS);
+  if (tasksSh) {
+    var emergencyName = 'emergency_' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd-HHmm');
+    tasksSh.setName(emergencyName);
+  }
+
+  // バックアップをtasksシートとしてコピー
+  backupSh.copyTo(ss).setName(SHEET_TASKS);
+  Logger.log('復元完了: ' + backupName + ' → ' + SHEET_TASKS);
+  return true;
+}
+
+// バックアップ一覧を返す（管理用）
+function listBackups() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var backups = [];
+  ss.getSheets().forEach(function(sh) {
+    var name = sh.getName();
+    if (name.indexOf('backup_') === 0) {
+      backups.push(name.replace('backup_', ''));
+    }
+  });
+  backups.sort().reverse(); // 新しい順
+  Logger.log('バックアップ一覧: ' + JSON.stringify(backups));
+  return backups;
+}
+
+// トリガー自動設定関数（初回のみ手動で実行）
+function setupDailyTrigger() {
+  // 既存のトリガーを削除
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'dailyBackup') {
+      ScriptApp.deleteTrigger(t);
+    }
+  });
+  // 毎日深夜0時〜1時に実行するトリガーを作成
+  ScriptApp.newTrigger('dailyBackup')
+    .timeBased()
+    .everyDays(1)
+    .atHour(0)
+    .create();
+  Logger.log('トリガーを設定しました（毎日深夜0時）');
+}
 `;
 
 async function copyGasCode(){
