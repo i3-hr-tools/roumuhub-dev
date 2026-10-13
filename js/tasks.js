@@ -60,15 +60,13 @@ function setMajorCat(cat,el){
   document.querySelectorAll('.cat-tab,.cat-tab-sub').forEach(t=>t.classList.remove('active'));
   if(el) el.classList.add('active');
 
-  const isNews=(cat==='news');
   const isLinks=(cat==='links');
   const isDocs=(cat==='docs');
   const isAdmin=(cat==='admin');
   const isArchive=(cat==='archive');
-  const isMain=(!isNews&&!isLinks&&!isDocs&&!isAdmin&&cat!=='annual'&&!isArchive);
+  const isMain=(!isLinks&&!isDocs&&!isAdmin&&cat!=='annual'&&!isArchive);
 
   document.getElementById('main-panel').style.display=isMain?'':'none';
-  document.getElementById('news-panel').style.display=isNews?'flex':'none';
   document.getElementById('links-panel').style.display=isLinks?'flex':'none';
   document.getElementById('docs-panel').style.display=isDocs?'flex':'none';
   document.getElementById('admin-panel').style.display=isAdmin?'flex':'none';
@@ -80,8 +78,7 @@ function setMajorCat(cat,el){
   const rp=document.querySelector('.right-panel');
   if(rp)rp.style.display=isMain?'':'none';
 
-  if(isNews){if(!newsLoaded)loadNews();}
-  else if(isLinks){renderLinks();}
+  if(isLinks){renderLinks();}
   else if(isDocs){renderDocList();renderDocTagFilter();}
   else if(isAdmin){
     renderMembersPanel();
@@ -1032,7 +1029,7 @@ function renderTasks(){
   }
   if(filt!=='all')list=list.filter(t=>t.cat===filt);
   if(hireFilt!=='all') list=list.filter(t=>t.hireType===hireFilt);
-  if(majorCat!=='all'&&!['news','approvallog','links','docs','members'].includes(majorCat))
+  if(majorCat!=='all'&&!['approvallog','links','docs','members'].includes(majorCat))
     list=list.filter(t=>t.cat===majorCat);
   if(statusFilt!=='all'){
     if(statusFilt==='done'){

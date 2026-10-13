@@ -274,7 +274,7 @@
     <div id="task-container"></div>
   </main>
 
-  <!-- RIGHT PANEL (ニュース時は非表示) -->
+  <!-- RIGHT PANEL -->
   
   <aside class="right-panel">
     <!-- パネルタブ -->
@@ -312,7 +312,6 @@
 
 </div><!-- /layout -->
 
-<!-- NEWS PANEL -->
 <div id="annual-panel" style="display:none;flex-direction:column;overflow-y:auto;padding:20px 24px;background:var(--bg);width:100%;min-height:calc(100vh - 56px - 49px);box-sizing:border-box">
   <div id="annual-area-panel"></div>
 </div>
@@ -332,22 +331,6 @@
     </div>
     <div id="archive-list"></div>
   </div>
-</div>
-
-<div id="news-panel" style="display:none;flex-direction:column;overflow-y:auto;padding:20px 24px;background:var(--bg);width:100%;min-height:calc(100vh - 56px - 49px);box-sizing:border-box">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-    <h2 style="font-size:16px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px">📰 労務ニュース <span style="font-size:11px;font-weight:500;color:var(--text3)">労務ドットコム</span></h2>
-    <div style="display:flex;gap:8px;align-items:center">
-      <button onclick="loadNews()" style="display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:7px;border:1px solid var(--accent);background:var(--accent-light);color:var(--accent);font-size:11px;font-family:var(--font);cursor:pointer;font-weight:600" id="news-reload-btn">🔄 更新</button>
-      <a href="https://roumu.com" target="_blank" style="font-size:11px;color:var(--text3);text-decoration:none;padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:#fff"
-        onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
-        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text3)'">サイトを開く →</a>
-    </div>
-  </div>
-  <div id="news-source-note" style="font-size:11px;color:var(--text3);margin-bottom:14px;padding:8px 12px;background:var(--surface);border-radius:8px;border:1px solid var(--border)">
-    GAS設定済みの場合は自動取得します。未設定の場合はサンプル記事を表示します。
-  </div>
-  <div id="news-list"></div>
 </div>
 
 <!-- RESOURCES PANEL（リンク集 + 社内資料を統合） -->
@@ -1356,97 +1339,6 @@ let cy, cm, editId=null, editFiles=[];
 const T=new Date(); T.setHours(0,0,0,0);
 const GAS_ENABLED = GAS_URL !== 'YOUR_GAS_WEB_APP_URL_HERE';
 
-// ══ NEWS ══
-let newsLoaded = false;
-let newsItems = []; // GAS取得済みニュースキャッシュ
-
-const SAMPLE_NEWS = [
-  { title: '33.4％の企業でアルバイトの服装・身だしなみの決まりを緩和', date: '2026-04-22', url: 'https://roumu.com/archives/131037.html' },
-  { title: '2026年4月から適用される通勤手当の非課税限度額のＱ＆Ａ公開', date: '2026-04-21', url: 'https://roumu.com/archives/131299.html' },
-  { title: '20代の50.5％が静かな退職をしていると回答', date: '2026-04-20', url: 'https://roumu.com/archives/131290.html' },
-  { title: '2027年4月に予定される高プロにおける臨時の健康診断の検査項目追加', date: '2026-04-18', url: 'https://roumu.com/archives/131286.html' },
-];
-
-function switchNewsSource(src){}  // 廃止（互換性のため残す）
-
-async function loadNews(){
-  const btn  = document.getElementById('news-reload-btn');
-  const note = document.getElementById('news-source-note');
-  btn.textContent = '⏳ 取得中...';
-  btn.disabled = true;
-
-  if(isGasEnabled()){
-    try{
-      const res  = await fetch(`${getGasUrl()}?action=news`, { redirect:'follow' });
-      const data = await res.json();
-      if(data.ok && data.items && data.items.length){
-        newsItems = data.items;
-        newsLoaded = true;
-        renderNewsItems();
-        if(note) note.style.display = 'none';
-        btn.textContent = '🔄 更新';
-        btn.disabled = false;
-        return;
-      }
-      // GASからエラーが返った場合
-      const errMsg = data.error || '不明なエラー';
-      if(note){
-        note.style.display = '';
-        note.textContent = `⚠ GASエラー：${errMsg}　→ Apps Scriptで testNews() を実行して権限を承認してください`;
-      }
-    }catch(e){
-      if(note){
-        note.style.display = '';
-        note.textContent = '⚠ 取得に失敗しました。Apps ScriptでtestNews()を実行して権限を承認してください。';
-      }
-      console.warn('News fetch failed:', e);
-    }
-  } else {
-    if(note){
-      note.style.display = '';
-      note.textContent = 'GAS未設定のためサンプルデータを表示しています。GAS設定後は自動取得できます。';
-    }
-  }
-
-  // フォールバック：GAS未設定またはエラー時のみサンプルデータ
-  newsItems = SAMPLE_NEWS;
-  newsLoaded = true;
-  renderNewsItems();
-  btn.textContent = '🔄 更新';
-  btn.disabled = false;
-}
-
-function renderNewsItems(){
-  const list = document.getElementById('news-list');
-  if(!list) return;
-  list.innerHTML = '';
-
-  const items = newsItems.length ? newsItems : SAMPLE_NEWS;
-  if(!items.length){
-    list.innerHTML = '<div class="empty-state"><div class="icon">📰</div>記事がありません</div>';
-    return;
-  }
-
-  list.innerHTML = items.map(item => {
-    const date = item.date ? new Date(item.date).toLocaleDateString('ja-JP',{year:'numeric',month:'short',day:'numeric'}) : item.date || '';
-    const sourceColor = '#a87c50';
-    const sourceBg    = '#fdfaf5';
-    return `<a href="${item.url}" target="_blank" rel="noopener"
-      style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;background:var(--surface);border-radius:10px;border:1px solid var(--border);margin-bottom:8px;text-decoration:none;transition:all .15s;cursor:pointer"
-      onmouseover="this.style.borderColor='var(--accent)';this.style.boxShadow='0 2px 8px rgba(0,0,0,.06)'"
-      onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='none'">
-      <div style="flex:1">
-        <div style="font-size:13px;font-weight:600;color:var(--text);line-height:1.5;margin-bottom:4px">${item.title}</div>
-        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
-          <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">${date}</span>
-
-        </div>
-      </div>
-      <span style="font-size:11px;color:var(--accent);font-weight:600;white-space:nowrap;margin-top:2px">→</span>
-    </a>`;
-  }).join('');
-}
-
 // ══ VIEW MODE（チーム／個人） ══
 let viewMode = 'team'; // 'team' | 'personal'
 
@@ -1933,11 +1825,6 @@ function dispatch(action, p) {
     return j(getCalEvents(p.date || today(), p.calendarId || 'primary', p.email || ''));
   }
 
-  // ニュース取得（認証不要）
-  if (action === 'news') {
-    return j(fetchAllNews());
-  }
-
   return j({ error: 'unknown action: ' + action });
 }
 
@@ -2048,7 +1935,7 @@ function upsertTaskCalendar(task, member) {
       'カテゴリ: ' + (task.cat || ''),
       'ステータス: ' + (task.status || ''),
       '担当: ' + (member.name || ''),
-    ].filter(Boolean).join('\\n');
+    ].filter(Boolean).join('\n');
     if (existing.length > 0) {
       var ev = existing[0];
       ev.setTitle(title);
@@ -2151,49 +2038,6 @@ function getCal(calendarId) {
   } catch(e) { return null; }
 }
 
-// ニュース取得
-function fetchAllNews() {
-  var urls = [
-    'https://roumu.com/feed',
-    'https://www.mhlw.go.jp/rss/topics.rss',
-  ];
-  var items = [];
-  urls.forEach(function(url) {
-    try {
-      var xml = UrlFetchApp.fetch(url, { muteHttpExceptions: true }).getContentText();
-      var doc = XmlService.parse(xml);
-      var root = doc.getRootElement();
-      var ns = root.getNamespace();
-      var channel = root.getChild('channel', ns) || root;
-      var entries = channel.getChildren('item', ns);
-      if (!entries.length) entries = root.getChildren('entry');
-      entries.slice(0, 10).forEach(function(item) {
-        var title = getChildText(item, 'title');
-        var link  = getChildText(item, 'link') || getAttr(item, 'link', 'href');
-        var date  = getChildText(item, 'pubDate') || getChildText(item, 'published') || getChildText(item, 'updated');
-        if (title && link) {
-          items.push({ title: title.trim(), url: link.trim(), date: date ? date.trim() : '' });
-        }
-      });
-    } catch(e) { /* スキップ */ }
-  });
-  return { ok: true, items: items };
-}
-
-function getChildText(el, name) {
-  try {
-    var c = el.getChild(name);
-    return c ? c.getText() : null;
-  } catch(e) { return null; }
-}
-
-function getAttr(el, childName, attr) {
-  try {
-    var c = el.getChild(childName);
-    return c ? c.getAttribute(attr).getValue() : null;
-  } catch(e) { return null; }
-}
-
 function today() {
   var d = new Date();
   return d.getFullYear() + '-' +
@@ -2205,11 +2049,6 @@ function j(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
-}
-
-// テスト用
-function testNews() {
-  Logger.log(JSON.stringify(fetchAllNews()));
 }
 
 // HTMLテンプレートのinclude関数
@@ -3235,7 +3074,7 @@ function jumpToView(type){
   const rightPanel = document.querySelector('.right-panel');
   if(rightPanel && viewMode !== 'personal'){ rightPanel.style.display = ''; }
   // 他のパネルを非表示にする
-  ['news-panel','links-panel','docs-panel','admin-panel','archive-panel'].forEach(id=>{
+  ['links-panel','docs-panel','admin-panel','archive-panel'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.style.display='none';
   });
   const annualPanel=document.getElementById('annual-panel');
