@@ -403,11 +403,12 @@ function renderLeaveGantt(){
 function jumpToPersonTasks(name){
   // 名前で紐づけられたタスクを検索（leavePersonLink または assigneeの名前）
   const member = MEMBERS.find(m => m.name === name);
+  // チェックリストから自動生成されたタスクには必ずleavePersonLinkが設定されているため、
+  // これだけで「この休職者自身のタスク」を正確に特定できる。
+  // 担当者（assignee）ベースの絞り込みは、休職者名がたまたまスタッフ名と一致した場合に
+  // 「そのスタッフが担当している全く別の休職者のタスク」まで混入してしまうため廃止した。
   const linkedTasks = tasks.filter(t => t.leavePersonLink === name);
-  // 「担当タスク」は産休・育休・休職カテゴリのタスクのみに限定する
-  // （休職者の氏名がたまたまスタッフ名と一致した場合に、全く関係ない他カテゴリのタスクまで
-  //   表示されてしまうのを防ぐため）
-  const assignedTasks = member ? tasks.filter(t => t.assignee === member.id && t.cat === 'sankyuiku' && !linkedTasks.find(l=>l.id===t.id)) : [];
+  const assignedTasks = [];
   const allTasks = [...linkedTasks, ...assignedTasks];
 
   // すべてタブに切替
