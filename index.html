@@ -177,15 +177,6 @@
         </div>
       </div>
     </div>
-    <div class="sidebar-section">
-      <div class="sidebar-label">ビュー</div>
-      <div class="nav-item active" onclick="setView('all',this)">📋 すべて <span class="nav-badge green" id="b-all">0</span></div>
-      <div class="nav-item" onclick="setView('mine',this)">👤 自分のタスク <span class="nav-badge green" id="b-mine">0</span></div>
-      <div class="nav-item" onclick="setView('today',this)">🔴 今日期限 <span class="nav-badge red" id="b-today">0</span></div>
-      <div class="nav-item" onclick="setView('week',this)">🟡 今週中 <span class="nav-badge yellow" id="b-week">0</span></div>
-
-      <div class="nav-item" onclick="setView('done',this)">✅ 完了済み</div>
-    </div>
     <div style="flex:1"></div>
   </aside>
 
@@ -4171,32 +4162,23 @@ function jumpToView(type){
   const allTab = document.querySelector('.cat-tab');
   if(allTab) allTab.classList.add('active');
 
-  // 個人ビューの場合はviewMode='personal'のままフィルタだけ変更
-  const isPersonalMode = (viewMode === 'personal');
-
+  // 「ビュー」サイドバー廃止に伴い、ダッシュボードの各カードが個人/チーム共通で
+  // view（今日・今週・完了済み等）を直接制御する。個人ビューでもrenderTasks側でviewを尊重するため、
+  // ここでisPersonalModeによる特別扱いは不要。
   if(type==='overdue'){
-    if(!isPersonalMode) view='all';
-    statusFilt='all'; overdueFilter=true;
+    view='all'; statusFilt='all'; overdueFilter=true;
     document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));
   } else if(type==='today'){
-    view= isPersonalMode ? 'mine' : 'today';
-    statusFilt='all'; overdueFilter=false;
-    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-    const nav=[...document.querySelectorAll('.nav-item')].find(n=>n.textContent.includes('今日期限'));
-    if(nav) nav.classList.add('active');
+    view='today'; statusFilt='all'; overdueFilter=false;
+  } else if(type==='week'){
+    view='week'; statusFilt='all'; overdueFilter=false;
   } else if(type==='inprogress'){
-    if(!isPersonalMode) view='all';
-    statusFilt='inprogress'; overdueFilter=false;
+    view='all'; statusFilt='inprogress'; overdueFilter=false;
     document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));
     const chip=[...document.querySelectorAll('.filter-chip')].find(c=>c.textContent.trim()==='進行中');
     if(chip) chip.classList.add('active');
   } else if(type==='done'){
-    view= isPersonalMode ? 'mine' : 'done';
-    statusFilt= isPersonalMode ? 'done' : 'all';
-    overdueFilter=false;
-    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-    const nav=[...document.querySelectorAll('.nav-item')].find(n=>n.textContent.includes('完了済み'));
-    if(nav) nav.classList.add('active');
+    view='done'; statusFilt='all'; overdueFilter=false;
   }
   renderTasks(); renderStats();
   if(mainPanel) mainPanel.scrollTop=0;

@@ -55,6 +55,8 @@ function focusTask(id){
 function setMajorCat(cat,el){
   majorCat=cat;
   filt='all'; statusFilt='all';
+  // 「ビュー」サイドバー廃止に伴い、カテゴリタブ切替時は絞り込み状態（今日期限・今週中等）もリセットする
+  view='all'; overdueFilter=false;
   document.querySelectorAll('.cat-tab,.cat-tab-sub').forEach(t=>t.classList.remove('active'));
   if(el) el.classList.add('active');
 
@@ -1001,13 +1003,18 @@ function renderTasks(){
   }
   const ts=fmt(T);
   const {start:wkStart, end:wkEnd} = getThisWeekRange();
-  // 個人ビューは自分のタスクのみ強制
+  // 個人ビューは自分のタスクのみ強制。ただしダッシュボードの各カード（今日期限・今週中等）による
+  // 絞り込み（view）は、チームビューと同じ条件でそのまま適用する（以前は個人ビューだと無視されていた）
   if(viewMode==='personal'&&currentUser){
     list=list.filter(t=>t.assignee===currentUser.id);
-    list=list.filter(t=>t.status!=='done');
+    if(view==='today')list=list.filter(t=>t.status!=='done'&&t.due&&t.due.split('T')[0]===ts);
+    else if(view==='week')list=list.filter(t=>t.status!=='done'&&t.due&&t.due.split('T')[0]>=wkStart&&t.due.split('T')[0]<=wkEnd);
+    else if(view==='review')list=list.filter(t=>t.status==='review');
+    else if(view==='done')list=list.filter(t=>t.status==='done');
+    else list=list.filter(t=>t.status!=='done'); // 既定（すべて）は未完了のみ
   } else {
     if(view==='mine')list=list.filter(t=>t.assignee===(currentUser?.id));
-    else if(view==='today')list=list.filter(t=>t.status!=='done'&&t.due===ts);
+    else if(view==='today')list=list.filter(t=>t.status!=='done'&&t.due&&t.due.split('T')[0]===ts);
     else if(view==='week')list=list.filter(t=>t.status!=='done'&&t.due&&t.due.split('T')[0]>=wkStart&&t.due.split('T')[0]<=wkEnd);
     else if(view==='review')list=list.filter(t=>t.status==='review');
     else if(view==='done')list=list.filter(t=>t.status==='done');
@@ -1332,8 +1339,7 @@ function changeStatus(id,status){
   else { saveTasks(); }
   // 完了になったら完了済みビューへ自動移動
   if(status==='done'){
-    const doneNav = document.querySelector('.nav-item[onclick*="done"]');
-    if(doneNav){ setView('done', doneNav); }
+    setView('done');
     const calMsg = (isGasEnabled()&&t.assignee&&t.due) ? '　📅 カレンダー更新中...' : '';
     toast('✅ 完了しました → 完了済みに移動' + calMsg);
   } else {
@@ -1483,8 +1489,11 @@ function renderTodaySummary(){
   const el = document.getElementById('today-summary-content');
   if(!el) return;
   const ts = fmt(new Date());
-  // 集計対象は getTodayScopedTasks() に統一（左ナビ「ビュー」・今日期限のタスク一覧と同一基準）
+  const {start:wStart, end:wEnd} = getThisWeekRange();
+  // 集計対象は getTodayScopedTasks() に統一（今日期限のタスク一覧と同一基準）
   const all = getTodayScopedTasks();
+  const todayTasks  = all.filter(t=>t.status!=='done'&&t.due&&t.due.split('T')[0]===ts);
+  const weekTasks   = all.filter(t=>t.status!=='done'&&t.due&&t.due.split('T')[0]>=wStart&&t.due.split('T')[0]<=wEnd);
   const overdue     = all.filter(t=>t.status!=='done'&&t.due&&t.due.split('T')[0]<ts);
   const inprogress  = all.filter(t=>t.status==='inprogress');
   const doneToday   = all.filter(t=>t.status==='done'&&t.completedAt===ts);
@@ -1505,8 +1514,20 @@ function renderTodaySummary(){
       </div>
       <div style="font-size:11px;color:var(--accent);font-weight:700;margin-bottom:4px">${greet}${currentUser?'、'+currentUser.name+'さん':''} 👋</div>
       <div style="font-size:10px;color:var(--text3);margin-bottom:10px">${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日（${'日月火水木金土'[now.getDay()]}）</div>
-      <!-- 「今日期限」件数は左ナビの🔴今日期限バッジに一本化したため、ここでは重複表示しない -->
+      <!-- 「ビュー」サイドバー廃止に伴い、今日期限・今週中もここに統合 -->
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+        <div onclick="jumpToView('today')" style="background:#fff;border-radius:8px;padding:8px 10px;border:1px solid var(--border);cursor:pointer;transition:all .12s"
+          onmouseover="this.style.borderColor='#f59e0b';this.style.background='#fffbeb'"
+          onmouseout="this.style.borderColor='var(--border)';this.style.background='#fff'">
+          <div style="font-size:18px;font-weight:800;color:${todayTasks.length?'#f59e0b':'var(--text3)'}">${todayTasks.length}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:1px">今日期限</div>
+        </div>
+        <div onclick="jumpToView('week')" style="background:#fff;border-radius:8px;padding:8px 10px;border:1px solid var(--border);cursor:pointer;transition:all .12s"
+          onmouseover="this.style.borderColor='#eab308';this.style.background='#fefce8'"
+          onmouseout="this.style.borderColor='var(--border)';this.style.background='#fff'">
+          <div style="font-size:18px;font-weight:800;color:${weekTasks.length?'#eab308':'var(--text3)'}">${weekTasks.length}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:1px">今週中</div>
+        </div>
         <div onclick="jumpToView('overdue')" style="background:#fff;border-radius:8px;padding:8px 10px;border:1px solid var(--border);cursor:pointer;transition:all .12s"
           onmouseover="this.style.borderColor='var(--red)';this.style.background='#fef2f2'"
           onmouseout="this.style.borderColor='var(--border)';this.style.background='#fff'">
