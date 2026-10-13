@@ -404,7 +404,10 @@ function jumpToPersonTasks(name){
   // 名前で紐づけられたタスクを検索（leavePersonLink または assigneeの名前）
   const member = MEMBERS.find(m => m.name === name);
   const linkedTasks = tasks.filter(t => t.leavePersonLink === name);
-  const assignedTasks = member ? tasks.filter(t => t.assignee === member.id && !linkedTasks.find(l=>l.id===t.id)) : [];
+  // 「担当タスク」は産休・育休・休職カテゴリのタスクのみに限定する
+  // （休職者の氏名がたまたまスタッフ名と一致した場合に、全く関係ない他カテゴリのタスクまで
+  //   表示されてしまうのを防ぐため）
+  const assignedTasks = member ? tasks.filter(t => t.assignee === member.id && t.cat === 'sankyuiku' && !linkedTasks.find(l=>l.id===t.id)) : [];
   const allTasks = [...linkedTasks, ...assignedTasks];
 
   // すべてタブに切替
