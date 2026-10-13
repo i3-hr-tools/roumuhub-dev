@@ -98,6 +98,9 @@ async function testGasFromSettings(){
   }
 }
 
+// 接続・同期テスト。実データへの書き込み（saveAll等）は一切行わず、
+// 読み取り専用の確認だけに限定している（以前はテスト用ダミーデータでsaveAllを呼び、
+// 本番データを上書きしてしまう重大な不具合があったため廃止した）
 async function testSyncMinimal(){
   const url = getGasUrl();
   const resultEl = document.getElementById('sync-test-result');
@@ -107,7 +110,7 @@ async function testSyncMinimal(){
 
   const steps = [];
 
-  // Step1: GETでpingを確認
+  // Step1: GETでpingを確認（データ変更なし）
   try {
     const r = await fetch(`${url}?action=ping`, { redirect:'follow' });
     const d = await r.json();
@@ -118,40 +121,18 @@ async function testSyncMinimal(){
     return;
   }
 
-  // Step2: FormDataでsaveAllを試みる
-  try {
-    const fd = new FormData();
-    fd.append('action', 'saveAll');
-    fd.append('tasks',   JSON.stringify([{id:1,title:'テスト',status:'todo'}]));
-    fd.append('members', JSON.stringify([]));
-    fd.append('meta',    JSON.stringify({}));
-    if(gAccessToken) fd.append('token', gAccessToken);
-    const r = await fetch(url, { method:'POST', body:fd, redirect:'follow' });
-    const text = await r.text();
-    const d = JSON.parse(text);
-    if(d.ok) steps.push('✅ FormData POST saveAll: 成功');
-    else steps.push(`⚠ FormData POST saveAll: ${JSON.stringify(d)}`);
-  } catch(e) {
-    steps.push(`❌ FormData POST失敗: ${e.message}`);
-    // Step3: GETでsaveAllを試みる
-    try {
-      const qs = `action=saveAll&tasks=${encodeURIComponent(JSON.stringify([]))}&members=${encodeURIComponent('[]')}&meta=${encodeURIComponent('{}')}`; 
-      const r2 = await fetch(`${url}?${qs}`, { redirect:'follow' });
-      const d2 = await r2.json();
-      if(d2.ok) steps.push('✅ GET saveAll: 成功（GETなら動く）');
-      else steps.push(`⚠ GET saveAll: ${JSON.stringify(d2)}`);
-    } catch(e2) {
-      steps.push(`❌ GET saveAll失敗: ${e2.message}`);
-    }
-  }
-
-  // Step4: loadを確認
+  // Step2: loadを確認（読み取りのみ・データ変更なし）
   try {
     const tokenParam = gAccessToken ? '&token=' + encodeURIComponent(gAccessToken) : '';
     const r = await fetch(`${url}?action=load${tokenParam}`, { redirect:'follow' });
     const d = await r.json();
-    const taskCount = (d.tasks||[]).length;
-    steps.push(`✅ GET load: タスク${taskCount}件取得`);
+    if(d.error){
+      steps.push(`❌ GET load: ${d.error}`);
+    } else {
+      const taskCount = (d.tasks||[]).length;
+      const memberCount = (d.members||[]).length;
+      steps.push(`✅ GET load: タスク${taskCount}件・メンバー${memberCount}件を取得（読み取りのみ・データ変更なし）`);
+    }
   } catch(e) {
     steps.push(`❌ GET load失敗: ${e.message}`);
   }
