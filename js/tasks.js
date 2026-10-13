@@ -514,9 +514,11 @@ function updateDeadlineBanner(){
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
   const tmrStr = fmt(tomorrow);
 
-  const overdue = tasks.filter(t=>t.status!=='done'&&t.due&&t.due.split('T')[0]<ts);
-  const today   = tasks.filter(t=>t.status!=='done'&&t.due&&t.due.split('T')[0]===ts);
-  const tmr     = tasks.filter(t=>t.status!=='done'&&t.due&&t.due.split('T')[0]===tmrStr);
+  // ダッシュボードと同じ集計基準（getTodayScopedTasks）に統一。プライベートタスクも対象に含む
+  const scoped  = getTodayScopedTasks();
+  const overdue = scoped.filter(t=>t.status!=='done'&&t.due&&t.due.split('T')[0]<ts);
+  const today   = scoped.filter(t=>t.status!=='done'&&t.due&&t.due.split('T')[0]===ts);
+  const tmr     = scoped.filter(t=>t.status!=='done'&&t.due&&t.due.split('T')[0]===tmrStr);
 
   const banner = document.getElementById('deadline-banner');
   const text   = document.getElementById('deadline-banner-text');
@@ -1648,16 +1650,18 @@ function renderReminders(){
   const el=document.getElementById('reminder-list');
   const ts=fmt(T);
   const items=[];
+  // ダッシュボード・バナーと同じ集計基準に統一。プライベートタスクも対象に含む
+  const scoped=getTodayScopedTasks();
 
   // 期限切れ（未完了 & due < today）
-  tasks.filter(t=>t.status!=='done'&&t.due&&t.due.split('T')[0]<ts).forEach(t=>{
+  scoped.filter(t=>t.status!=='done'&&t.due&&t.due.split('T')[0]<ts).forEach(t=>{
     const d=new Date(t.due.split('T')[0]);d.setHours(0,0,0,0);
     const df=Math.floor((T-d)/86400000);
     items.push({t,df,type:'overdue'});
   });
 
   // リマインド期間内（未完了 & remind設定あり & due >= today）
-  tasks.filter(t=>t.status!=='done'&&t.due&&t.remind&&t.due.split('T')[0]>=ts).forEach(t=>{
+  scoped.filter(t=>t.status!=='done'&&t.due&&t.remind&&t.due.split('T')[0]>=ts).forEach(t=>{
     const d=new Date(t.due.split('T')[0]);d.setHours(0,0,0,0);
     const df=Math.floor((d-T)/86400000);
     if(df<=parseInt(t.remind))items.push({t,df,type:'remind'});
