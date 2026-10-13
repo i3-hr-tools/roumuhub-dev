@@ -210,10 +210,9 @@ function createOnboardingTasksForPerson(id){
   const due = p.date || `${new Date().getFullYear()}-${pad(new Date().getMonth()+1)}-${pad(new Date().getDate())}`;
   items.forEach((it,i)=>{
     const t = typeof it==='object' ? it : {title:it};
-    const impMark = t.importance==='must' ? '【必須】' : t.importance==='recommend' ? '【推奨】' : '';
     const prefix  = hireLabel ? `【${label}・${hireLabel}】` : `【${label}】`;
     tasks.push({
-      id:Date.now()+i, title:`${prefix}${p.name} / ${impMark}${t.title}`,
+      id:Date.now()+i, title:`${prefix}${p.name} / ${t.title}`,
       cat:'nyutai', due, status:'todo',
       hireType: p.type==='join' ? (p.hireType||'chuto') : '',   // ← 一覧バッジ・絞り込み用
       assignee:currentUser?.id||'', approver:'', remind:'3',

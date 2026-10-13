@@ -367,9 +367,8 @@ function createLeaveChecklistTasks(id){
   items.forEach((item,i)=>{
     const t = typeof item==='object'?item:{title:item};
     const itemDue = (typeof item==='object'&&item.due)?item.due:due;
-    const impMark = t.importance==='must' ? '【必須】' : t.importance==='recommend' ? '【推奨】' : '';
     tasks.push({
-      id:Date.now()+i, title:`【${meta.label}】${p.name} / ${impMark}${t.title}`,
+      id:Date.now()+i, title:`【${meta.label}】${p.name} / ${t.title}`,
       cat:'sankyuiku', due:itemDue||due, status:'todo',
       leaveType: p.type,   // ← 一覧バッジ用（maternity/childcare/papa/sick）
       assignee:currentUser?.id||'', approver:'', remind:'3',
