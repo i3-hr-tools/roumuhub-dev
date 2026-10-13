@@ -1,14 +1,5 @@
 // ══ メンバー管理・PINログイン機能 ══
 
-async function hashPin(pin) {
-  if (!pin) return '';
-  const encoder = new TextEncoder();
-  const salt = 'roumu_tool_pin_salt_v1';
-  const data = encoder.encode(salt + pin);
-  const hashBuf = await crypto.subtle.digest('SHA-256', data);
-  const hashArr = Array.from(new Uint8Array(hashBuf));
-  return hashArr.map(b => b.toString(16).padStart(2, '0')).join('');
-}
 
 function saveMembers(){localStorage.setItem('team_members',JSON.stringify(MEMBERS)); scheduleAutoSync();}
 
@@ -69,12 +60,6 @@ function renderMembersPanel(){
     </div>`).join('');
 }
 
-function togglePinVisibility(){
-  const inp = document.getElementById('mm-pin');
-  const btn = document.getElementById('mm-pin-toggle');
-  if(inp.type==='password'){inp.type='text';btn.textContent='非表示';}
-  else{inp.type='password';btn.textContent='表示';}
-}
 
 function selectColor(color,el){
   selectedColor=color;
@@ -91,9 +76,6 @@ function openMemberModal(id){
   document.getElementById('mm-initial').value=editM?.initial||'';
   document.getElementById('mm-email').value=editM?.email||'';
   document.getElementById('mm-calendar-id').value=editM?.calendarId||'primary';
-  document.getElementById('mm-pin').value=editM?.pin||'';
-  document.getElementById('mm-pin').type='password';
-  document.getElementById('mm-pin-toggle').textContent='表示';
   selectedColor=editM?.color||'#2d7a4f';
   document.getElementById('mm-color').value=selectedColor;
   // カラーピッカー初期化
@@ -115,15 +97,12 @@ async function saveMember(){
   const name=document.getElementById('mm-name').value.trim();
   if(!name){toast('⚠ 名前を入力してください',true);if(saveBtn)saveBtn.disabled=false;return;}
   const initial=(document.getElementById('mm-initial').value.trim()||name[0]).toUpperCase();
-  const rawPin=document.getElementById('mm-pin').value.trim();
-  const pinHash=rawPin ? await hashPin(rawPin) : '';
   const vals={
     name,
     initial,
     color:document.getElementById('mm-color').value||selectedColor,
     email:document.getElementById('mm-email').value.trim(),
     calendarId:document.getElementById('mm-calendar-id').value.trim()||'primary',
-    pin:pinHash,
   };
   const editId=document.getElementById('mm-edit-id').value;
   if(editId){
@@ -197,82 +176,9 @@ async function syncMemberCalendar(memberId){
   }
 }
 
-function startPinLogin(id){
-  const m = MEMBERS.find(m=>m.id===id);
-  if(!m) return;
-  // PINが未設定ならそのままログイン
-  if(!m.pin){
-    doLogin(id);
-    return;
-  }
-  // PINステップへ
-  _pinTargetId = id;
-  _pinEntry = '';
-  document.getElementById('login-step-member').style.display = 'none';
-  document.getElementById('login-step-pin').style.display = 'block';
-  document.getElementById('pin-avatar').textContent = m.initial;
-  document.getElementById('pin-avatar').style.background = m.color;
-  document.getElementById('pin-name-label').textContent = m.name;
-  document.getElementById('pin-error').style.display = 'none';
-  updatePinDots();
-}
 
-function pinInput(digit){
-  if(_pinEntry.length >= 4) return;
-  _pinEntry += digit;
-  updatePinDots();
-  if(_pinEntry.length === 4) setTimeout(()=>checkPin().catch(e=>console.error('checkPin error:',e)), 120);
-}
 
-function pinBack(){
-  _pinEntry = _pinEntry.slice(0,-1);
-  updatePinDots();
-}
 
-function pinClear(){
-  _pinEntry = '';
-  updatePinDots();
-  document.getElementById('pin-error').style.display = 'none';
-}
 
-function updatePinDots(){
-  for(let i=0;i<4;i++){
-    const dot = document.getElementById('pd'+i);
-    if(dot) dot.style.background = i < _pinEntry.length ? 'var(--accent)' : 'var(--border)';
-  }
-}
 
-async function checkPin(){
-  const m = MEMBERS.find(m=>m.id===_pinTargetId);
-  if(!m) return;
-  const inputHash = await hashPin(_pinEntry);
-  if(inputHash === m.pin){
-    doLogin(_pinTargetId);
-  } else {
-    document.getElementById('pin-error').style.display = 'block';
-    const box = document.getElementById('pin-dots');
-    box.style.animation = 'pinShake .3s ease';
-    setTimeout(()=>{ box.style.animation=''; _pinEntry=''; updatePinDots(); }, 350);
-  }
-}
 
-function backToMemberSelect(){
-  _pinTargetId = null;
-  _pinEntry = '';
-  document.getElementById('login-step-pin').style.display = 'none';
-  document.getElementById('login-step-member').style.display = 'block';
-  document.getElementById('pin-error').style.display = 'none';
-}
-
-function switchUser(){
-  _pinEntry = '';
-  const pinEl = document.getElementById('login-step-pin');
-  const memberEl = document.getElementById('login-step-member');
-  const pinErrEl = document.getElementById('pin-error');
-  if(pinEl) pinEl.style.display = 'none';
-  if(memberEl) memberEl.style.display = 'block';
-  if(pinErrEl) pinErrEl.style.display = 'none';
-  renderUserSelect();
-  const modal = document.getElementById('user-select-modal');
-  if(modal) modal.classList.add('open');
-}
