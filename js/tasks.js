@@ -1,8 +1,18 @@
 // ══ タスク管理（CRUD・表示・検索・CSV） ══
 
+// 「今日期限」の集計対象を全箇所（サイドバー一覧・ビューバッジ・ダッシュボード）で統一するための共通関数
+// viewMode（チーム/個人）とプライベートタスクの扱いを一箇所にまとめることで、場所ごとの件数ズレを防ぐ
+function getTodayScopedTasks(){
+  const privTasks = currentUser ? getPrivateTasks().map(t=>({...t,_isPrivate:true})) : [];
+  if(viewMode === 'personal' && currentUser){
+    return [...tasks, ...privTasks].filter(t => t.assignee === currentUser.id);
+  }
+  return [...tasks, ...privTasks].filter(t => !t.private || (currentUser && (t.assignee === currentUser.id || t.assignee===''||!t.assignee)));
+}
+
 function renderTodayTasks(){
   const ts=fmt(T);
-  const list=tasks.filter(t=>t.status!=='done'&&t.due&&t.due.startsWith(ts));
+  const list=getTodayScopedTasks().filter(t=>t.status!=='done'&&t.due&&t.due.split('T')[0]===ts);
   const el=document.getElementById('today-tasks-list');
   const badge=document.getElementById('today-tasks-count');
   if(!el)return;
@@ -127,19 +137,8 @@ function renderStats(){
   const {start:wStart, end:wEnd} = getThisWeekRange();
   const setEl = (id,val) => { try { const e=document.getElementById(id); if(e) e.textContent=val; } catch(e){} };
 
-  // ダッシュボードと同じ集計基準に統一
-  // チームビュー：チームタスク＋個人タスク両方
-  // 個人ビュー：自分のタスクのみ
-  const privTasks = currentUser ? getPrivateTasks().map(t=>({...t,_isPrivate:true})) : [];
-  let base;
-  if(viewMode === 'personal' && currentUser){
-    // 個人ビュー：自分のタスクのみ
-    base = [...tasks, ...privTasks].filter(t => t.assignee === currentUser.id);
-  } else {
-    // チームビュー：チーム＋個人（privateは自分のもののみ）
-    const all = [...tasks, ...privTasks];
-    base = all.filter(t => !t.private || (currentUser && (t.assignee === currentUser.id || t.assignee===''||!t.assignee)));
-  }
+  // 「今日期限のタスク」ウィジェットと同じ集計基準（getTodayScopedTasks）に統一
+  const base = getTodayScopedTasks();
 
   const pending = base.filter(t => t.status !== 'done');
   setEl('b-all',    pending.length);
@@ -1484,18 +1483,8 @@ function renderTodaySummary(){
   const el = document.getElementById('today-summary-content');
   if(!el) return;
   const ts = fmt(new Date());
-  // viewModeに応じて集計対象を切り替え（左ナビと統一）
-  const privTasks2 = currentUser ? getPrivateTasks().map(t=>({...t,_isPrivate:true})) : [];
-  let all;
-  if(viewMode === 'personal' && currentUser){
-    // 個人ビュー：自分のタスクのみ
-    all = [...tasks, ...privTasks2].filter(t => t.assignee === currentUser.id);
-  } else {
-    // チームビュー：チーム＋個人（privateは自分のもののみ）
-    const allBase = [...tasks, ...privTasks2];
-    all = allBase.filter(t => !t.private || (currentUser && t.assignee === currentUser.id));
-  }
-  const todayTasks  = all.filter(t=>t.status!=='done'&&t.due&&t.due.split('T')[0]===ts);
+  // 集計対象は getTodayScopedTasks() に統一（左ナビ「ビュー」・今日期限のタスク一覧と同一基準）
+  const all = getTodayScopedTasks();
   const overdue     = all.filter(t=>t.status!=='done'&&t.due&&t.due.split('T')[0]<ts);
   const inprogress  = all.filter(t=>t.status==='inprogress');
   const doneToday   = all.filter(t=>t.status==='done'&&t.completedAt===ts);
@@ -1516,13 +1505,8 @@ function renderTodaySummary(){
       </div>
       <div style="font-size:11px;color:var(--accent);font-weight:700;margin-bottom:4px">${greet}${currentUser?'、'+currentUser.name+'さん':''} 👋</div>
       <div style="font-size:10px;color:var(--text3);margin-bottom:10px">${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日（${'日月火水木金土'[now.getDay()]}）</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-        <div onclick="jumpToView('today')" style="background:#fff;border-radius:8px;padding:8px 10px;border:1px solid var(--border);cursor:pointer;transition:all .12s"
-          onmouseover="this.style.borderColor='#f59e0b';this.style.background='#fffbeb'"
-          onmouseout="this.style.borderColor='var(--border)';this.style.background='#fff'">
-          <div style="font-size:18px;font-weight:800;color:${todayTasks.length?'#f59e0b':'var(--text3)'}">${todayTasks.length}</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:1px">今日期限</div>
-        </div>
+      <!-- 「今日期限」件数は左ナビの🔴今日期限バッジに一本化したため、ここでは重複表示しない -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
         <div onclick="jumpToView('overdue')" style="background:#fff;border-radius:8px;padding:8px 10px;border:1px solid var(--border);cursor:pointer;transition:all .12s"
           onmouseover="this.style.borderColor='var(--red)';this.style.background='#fef2f2'"
           onmouseout="this.style.borderColor='var(--border)';this.style.background='#fff'">
