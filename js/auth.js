@@ -33,6 +33,9 @@ function initGoogleAuth() {
   gTokenClient = google.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
     scope: LOGIN_SCOPES,
+    // i3-systems.com のアカウントに限定（ヒントであり強制力はないため、
+    // 実際のアクセス制御は引き続きAPP_ALLOWED_EMAILS・GAS側のcheckAccessで行う）
+    hd: 'i3-systems.com',
     callback: (tokenResponse) => {
       if (tokenResponse.error) {
         toast('⚠ Googleログインに失敗しました', true);
