@@ -108,7 +108,6 @@ async function saveMember(){
   if(editId){
     const m=MEMBERS.find(m=>m.id===editId);
     if(m){
-      if(!rawPin && m.pin) vals.pin=m.pin;
       Object.assign(m,vals);
     }
   } else {
