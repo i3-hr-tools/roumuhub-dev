@@ -1497,20 +1497,15 @@ function calcPrevBizDay3pmMins(dueDate) {
   return mins > 0 ? mins : 1; // 安全弁：負の値・0を防止（最低1分）
 }
 
+// このGASはデータ同期・カレンダー連携専用のAPIとして使う（アプリ本体はGitHub Pagesで配信）。
+// actionパラメータが無いアクセス（例: このURLを直接ブラウザで開いた場合）には、
+// 古いHTMLページを返さず、エラーだけを返す。
 function doGet(e) {
   try {
     var p = (e && e.parameter) ? e.parameter : {};
     var a = p.action || '';
-
-    // actionパラメータがある場合はAPIとして処理
-    if (a) return dispatch(a, p);
-
-    // actionがない場合はHTMLアプリを返す
-    return HtmlService.createHtmlOutputFromFile('index')
-      .setTitle('i3 RomuHub')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
-
+    if (!a) return j({ error: 'action parameter is required. This endpoint is API-only.' });
+    return dispatch(a, p);
   } catch(err) {
     return j({ error: 'リクエストエラー' });
   }
