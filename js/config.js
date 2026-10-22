@@ -10,4 +10,5 @@ const SHEET_ID = 'YOUR_SPREADSHEET_ID_HERE';
 // ══ GOOGLE OAuth 設定（GitHub Pages + GASスプレッドシート構成）══
 // ▼ GCPのOAuthクライアントID（承認済みオリジン: https://aitajiri0317.github.io）
 const GOOGLE_CLIENT_ID = '854356876888-o4cnprp3nm346qun6i6vav61fum51mgu.apps.googleusercontent.com';
-const LOGIN_SCOPES = 'email profile';
+// Google ToDo（Tasks）連携のため、Tasksへの読み書き権限を追加
+const LOGIN_SCOPES = 'email profile https://www.googleapis.com/auth/tasks';

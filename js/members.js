@@ -44,15 +44,18 @@ function renderMembersPanel(){
           <div style="font-size:10px;color:var(--text3);margin-top:3px">期限超過</div>
         </div>
       </div>
-      <!-- カレンダー連携 -->
+      <!-- Google ToDo連携 -->
       <div style="padding:12px 18px">
-        ${m.email?`
+        ${m.email && currentUser && m.id===currentUser.id?`
           <button onclick="syncMemberCalendar('${m.id}')"
             style="width:100%;padding:9px;border-radius:9px;border:none;background:linear-gradient(135deg,var(--green) 0%,#059669 100%);color:#fff;cursor:pointer;font-size:12px;font-weight:700;font-family:var(--font);transition:all .15s;box-shadow:0 2px 6px rgba(5,150,105,.3)"
             onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(5,150,105,.4)'"
             onmouseout="this.style.transform='';this.style.boxShadow='0 2px 6px rgba(5,150,105,.3)'">
-            🔄 カレンダーと同期
-          </button>`:`
+            🔄 自分のToDoと同期
+          </button>`:m.email?`
+          <div style="text-align:center;padding:8px;font-size:11px;color:var(--text3);background:var(--surface2);border-radius:8px">
+            📱 ToDo同期はご本人のログイン中のみ実行できます
+          </div>`:`
           <div style="text-align:center;padding:8px;font-size:11px;color:var(--text3);background:var(--surface2);border-radius:8px">
             📧 メール未設定 — 編集から設定してください
           </div>`}
@@ -143,33 +146,21 @@ function deleteMember(id){
   toast('🗑 メンバーを削除しました');
 }
 
+// Google ToDo（Tasks）はご本人のログイン権限でしか書き込めないため、
+// この手動ボタンは「自分自身」の行でのみ表示・実行される（members.jsのカード側で制御）
 async function syncMemberCalendar(memberId){
   const m=MEMBERS.find(m=>m.id===memberId);if(!m)return;
-  if(!isGasEnabled()){toast('⚠ GAS URLが未設定です',true);return;}
-  if(!m.email){toast('⚠ Googleアカウントが設定されていません',true);return;}
-  const myTasks=tasks.filter(t=>t.assignee===memberId&&t.status!=='done'&&t.due);
-  if(!myTasks.length){toast('⚠ 同期するタスクがありません',true);return;}
-  toast(`🔄 ${m.name}のタスクを同期中...`);
+  if(!currentUser || m.id!==currentUser.id){
+    toast('⚠ ご本人としてログイン中の場合のみ、ToDoへ同期できます',true);
+    return;
+  }
+  if(!gAccessToken){toast('⚠ ログイン状態を確認してください',true);return;}
+  toast(`🔄 ${m.name}さんのToDoを同期中...`);
   try{
-    // URLSearchParams形式でtokenを含めてPOST
-    const sp = new URLSearchParams();
-    sp.append('action', 'syncCalendar');
-    sp.append('memberId', memberId);
-    sp.append('email', m.email);
-    sp.append('calendarId', m.calendarId||'primary');
-    sp.append('tasks', JSON.stringify(myTasks));
-    if(gAccessToken) sp.append('token', gAccessToken);
-    const res=await fetch(getGasUrl(),{
-      method:'POST',
-      headers:{'Content-Type':'application/x-www-form-urlencoded'},
-      body:sp.toString(),
-      redirect:'follow'
-    });
-    const data=await res.json();
-    if(data.success){toast(`✅ ${m.name}のカレンダーに${myTasks.length}件を同期しました`);}
-    else{toast('⚠ 同期に失敗しました',true);}
+    await syncMyGoogleTasks();
+    toast(`✅ ${m.name}さんのGoogle ToDoに同期しました`);
   }catch(e){
-    toast('⚠ 同期に失敗しました。GAS URLを確認してください。',true);
+    toast('⚠ 同期に失敗しました',true);
   }
 }
 

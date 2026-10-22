@@ -1109,6 +1109,7 @@
 <script src="js/utils.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/sync.js"></script>
+<script src="js/googletasks.js"></script>
 <script src="js/tasks.js"></script>
 <script src="js/subtasks.js"></script>
 <script src="js/calendar.js"></script>
@@ -1130,21 +1131,6 @@
 
 
 // トークンをサイレントに自動更新する
-async function refreshTokenSilently() {
-  if (!gTokenClient) return;
-  return new Promise((resolve) => {
-    const prevCallback = gTokenClient.callback;
-    gTokenClient.callback = (tokenResponse) => {
-      if (!tokenResponse.error) {
-        gAccessToken = tokenResponse.access_token;
-        _tokenExpireAt = Date.now() + (tokenResponse.expires_in || 3600) * 1000;
-      }
-      gTokenClient.callback = prevCallback;
-      resolve();
-    };
-    gTokenClient.requestAccessToken({ prompt: '' }); // promptなし＝サイレント更新
-  });
-}
 
 
 // ── アプリログイン用Googleログイン処理 ──
@@ -1156,73 +1142,6 @@ const APP_ALLOWED_EMAILS = [
 ];
 
 
-async function completeAppLogin() {
-  try {
-    // Googleユーザー情報を取得
-    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-      headers: { Authorization: `Bearer ${gAccessToken}` }
-    });
-    const info = await res.json();
-    const email = info.email || '';
-
-    // アクセス制御チェック
-    if (!APP_ALLOWED_EMAILS.includes(email)) {
-      gAccessToken = null;
-      document.getElementById('login-step-loading').style.display = 'none';
-      document.getElementById('login-step-google').style.display = 'block';
-      showLoginError(`このアカウント（${email}）はアクセスが許可されていません。`);
-      return;
-    }
-
-    // メールアドレスからメンバーを自動判定
-    let member = MEMBERS.find(m => m.email === email);
-
-    // メンバーが見つからない場合は名前で照合、それでもなければ自動作成
-    if (!member) {
-      const name = info.name || email.split('@')[0];
-      member = MEMBERS.find(m => m.name === name);
-      if (!member) {
-        // 新規メンバーとして追加
-        const initial = (info.name || email)[0].toUpperCase();
-        const colors = ['#2d7a4f','#2563a8','#6d3faa','#c05621','#0e7490'];
-        const color = colors[MEMBERS.length % colors.length];
-        member = { id: 'm' + Date.now(), name: info.name || email.split('@')[0], initial, color, email, calendarId: 'primary', pin: '' };
-        MEMBERS.push(member);
-        saveMembers();
-      } else {
-        // メールアドレスを更新
-        member.email = email;
-        saveMembers();
-      }
-    }
-
-    // ヘッダーにGoogleアバター・名前を表示
-    const avatarEl = document.getElementById('google-avatar');
-    const initEl = document.getElementById('current-avatar');
-    const nameEl = document.getElementById('current-name');
-    if (nameEl) nameEl.textContent = info.name || email.split('@')[0];
-    if (avatarEl && info.picture) {
-      avatarEl.src = info.picture;
-      avatarEl.style.display = 'block';
-      if (initEl) initEl.style.display = 'none';
-    } else {
-      // アバター画像がない場合はイニシャルを表示
-      if (avatarEl) avatarEl.style.display = 'none';
-      if (initEl) {
-        initEl.textContent = member.initial;
-        initEl.style.background = member.color;
-        initEl.style.display = 'flex';
-      }
-    }
-    // ツールにログイン
-    doLogin(member.id);
-
-  } catch(e) {
-    document.getElementById('login-step-loading').style.display = 'none';
-    document.getElementById('login-step-google').style.display = 'block';
-    showLoginError('ログイン処理中にエラーが発生しました。もう一度お試しください。');
-  }
-}
 
 function showLoginError(msg) {
   const el = document.getElementById('google-login-error');
@@ -1371,7 +1290,9 @@ function hidePersonalBanner(){
 
 // GASコードをクリップボードにコピー
 const GAS_CODE_FOR_COPY = `// ============================================================
-//  i3 RomuHub — GAS バックエンド v4.10
+//  i3 RomuHub — GAS バックエンド v4.11
+//  v4.11: タスクのカレンダー書き込み機能を廃止（Google ToDo連携に置き換え）
+//        「今日の予定」表示用の読み取り専用カレンダー機能のみ残す
 //  Google Workspace連携版
 //  3名のみアクセス許可（メールアドレスで制御）
 //  v4.10: カレンダー同期タイトルの【】重複を修正
@@ -1438,65 +1359,6 @@ function getCatPrefix(cat) {
   return CAT_PREFIX[cat] || '【その他】';
 }
 
-// タスク名がすでに「【種別】」から始まっている場合（休職・新人オンボーディング等の
-// 自動生成タスク）は、カレンダー同期時にカテゴリ接頭辞を二重に付けない
-function buildCalendarTitle(task) {
-  return /^【/.test(task.title) ? task.title : (getCatPrefix(task.cat) + task.title);
-}
-
-// 土日・祝日判定（日本の祝日カレンダーを参照）
-function isHolidayOrWeekend(date) {
-  var day = date.getDay();
-  if (day === 0 || day === 6) return true;
-  var calHoliday = CalendarApp.getCalendarById('ja.japanese#holiday@group.v.calendar.google.com');
-  if (calHoliday) {
-    var events = calHoliday.getEventsForDay(date);
-    if (events.length > 0) return true;
-  }
-  return false;
-}
-
-// 指定日の前営業日を返す（土日祝をスキップ）
-function getPrevBizDay(date) {
-  var d = new Date(date);
-  d.setDate(d.getDate() - 1);
-  while (isHolidayOrWeekend(d)) {
-    d.setDate(d.getDate() - 1);
-  }
-  return d;
-}
-
-// 3営業日前を返す（土日祝をスキップして3日遡る）
-function get3BizDaysAgo(date) {
-  var d = new Date(date);
-  var count = 0;
-  while (count < 3) {
-    d.setDate(d.getDate() - 1);
-    if (!isHolidayOrWeekend(d)) {
-      count++;
-    }
-  }
-  return d;
-}
-
-// ① 3営業日前の午前9:00のリマインダー分数を計算
-function calc3BizDaysAgo9amMins(dueDate) {
-  var target = get3BizDaysAgo(dueDate);
-  var dueMidnightJst = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate(), 0, 0, 0);
-  var target9amJst   = new Date(target.getFullYear(), target.getMonth(), target.getDate(), 9, 0, 0);
-  var mins = Math.round((dueMidnightJst.getTime() - target9amJst.getTime()) / 60000);
-  return mins > 0 ? mins : 1; // 安全弁：負の値・0を防止（最低1分）
-}
-
-// ② 前営業日の午後15:00のリマインダー分数を計算
-function calcPrevBizDay3pmMins(dueDate) {
-  var target = getPrevBizDay(dueDate);
-  var dueMidnightJst = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate(), 0, 0, 0);
-  var target3pmJst   = new Date(target.getFullYear(), target.getMonth(), target.getDate(), 15, 0, 0);
-  var mins = Math.round((dueMidnightJst.getTime() - target3pmJst.getTime()) / 60000);
-  return mins > 0 ? mins : 1; // 安全弁：負の値・0を防止（最低1分）
-}
-
 // このGASはデータ同期・カレンダー連携専用のAPIとして使う（アプリ本体はGitHub Pagesで配信）。
 // actionパラメータが無いアクセス（例: このURLを直接ブラウザで開いた場合）には、
 // 古いHTMLページを返さず、エラーだけを返す。
@@ -1534,7 +1396,7 @@ function dispatch(action, p) {
 
   // ping（認証不要）
   if (action === 'ping') {
-    return j({ ok: true, version: '4.10', ts: new Date().toISOString() });
+    return j({ ok: true, version: '4.11', ts: new Date().toISOString() });
   }
 
   // load
@@ -1632,26 +1494,7 @@ function dispatch(action, p) {
     return j({ ok: true });
   }
 
-  // カレンダー操作
-  if (action === 'upsertTaskCalendar') {
-    checkAccess(p.token || '');
-    var task   = parseParam(p.task)   || {};
-    var member = parseParam(p.member) || {};
-    return j(upsertTaskCalendar(task, member));
-  }
-
-  if (action === 'deleteTaskCalendar') {
-    checkAccess(p.token || '');
-    var member = parseParam(p.member) || {};
-    return j(deleteTaskCalendar(p.taskId, p.taskTitle, member));
-  }
-
-  if (action === 'syncCalendar') {
-    checkAccess(p.token || '');
-    var tasks = parseParam(p.tasks) || [];
-    return j(syncCal(p.memberId, p.email, p.calendarId || 'primary', tasks));
-  }
-
+  // カレンダー操作（読み取り専用。タスクのカレンダー書き込みはGoogle ToDo連携に置き換えたため廃止）
   if (action === 'calendar') {
     checkAccess(p.token || '');
     return j(getCalEvents(p.date || today(), p.calendarId || 'primary', p.email || ''));
@@ -1748,98 +1591,6 @@ function parseParam(p) {
 }
 
 // カレンダー操作
-function upsertTaskCalendar(task, member) {
-  if (!task || !task.due) return { ok: true, skipped: 'no due date' };
-  if (!member || !member.calendarId) return { ok: true, skipped: 'no calendarId' };
-  try {
-    var cal = getCal(member.calendarId);
-    if (!cal) return { ok: false, error: 'calendar not found: ' + member.calendarId };
-    var dateStr = task.due.split('T')[0];
-    var parts = dateStr.split('-');
-    var dueDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-    var title = buildCalendarTitle(task);
-    var searchStart = new Date(dueDate); searchStart.setMonth(searchStart.getMonth() - 2);
-    var searchEnd   = new Date(dueDate); searchEnd.setMonth(searchEnd.getMonth() + 2);
-    var existing = cal.getEvents(searchStart, searchEnd)
-      .filter(function(ev) { return ev.getTag('roumu_task_id') === String(task.id); });
-    var desc = [
-      task.note || '',
-      'カテゴリ: ' + (task.cat || ''),
-      'ステータス: ' + (task.status || ''),
-      '担当: ' + (member.name || ''),
-    ].filter(Boolean).join(String.fromCharCode(10));
-    if (existing.length > 0) {
-      var ev = existing[0];
-      ev.setTitle(title);
-      ev.setAllDayDate(dueDate);
-      ev.setDescription(desc);
-      ev.setVisibility(CalendarApp.Visibility.PRIVATE);
-      // ダブルリマインダー: ①3営業日前9時 ②前営業日15時
-      ev.removeAllReminders();
-      ev.addPopupReminder(calc3BizDaysAgo9amMins(dueDate));
-      ev.addPopupReminder(calcPrevBizDay3pmMins(dueDate));
-    } else {
-      var newEv = cal.createAllDayEvent(title, dueDate, { description: desc, visibility: CalendarApp.Visibility.PRIVATE });
-      newEv.setVisibility(CalendarApp.Visibility.PRIVATE);
-      newEv.setTag('roumu_task_id', String(task.id));
-      // ダブルリマインダー: ①3営業日前9時 ②前営業日15時
-      newEv.addPopupReminder(calc3BizDaysAgo9amMins(dueDate));
-      newEv.addPopupReminder(calcPrevBizDay3pmMins(dueDate));
-    }
-    return { ok: true };
-  } catch(e) {
-    return { ok: false, error: e.message };
-  }
-}
-
-function deleteTaskCalendar(taskId, taskTitle, member) {
-  if (!member || !member.calendarId) return { ok: true, skipped: 'no calendarId' };
-  try {
-    var cal = getCal(member.calendarId);
-    if (!cal) return { ok: false, error: 'calendar not found' };
-    var now = new Date();
-    var past = new Date(now); past.setFullYear(past.getFullYear() - 2);
-    var future = new Date(now); future.setFullYear(future.getFullYear() + 2);
-    var events = cal.getEvents(past, future)
-      .filter(function(ev) { return ev.getTag('roumu_task_id') === String(taskId); });
-    events.forEach(function(ev) { ev.deleteEvent(); });
-    return { ok: true, deleted: events.length };
-  } catch(e) {
-    return { ok: false, error: e.message };
-  }
-}
-
-function syncCal(memberId, email, calendarId, tasks) {
-  try {
-    var cal = getCal(calendarId);
-    if (!cal) return { ok: false, error: 'calendar not found: ' + calendarId };
-    var count = 0;
-    tasks.forEach(function(task) {
-      if (!task.due || task.status === 'done') return;
-      var dateStr = task.due.split('T')[0];
-      var parts = dateStr.split('-');
-      var dueDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-      var title = buildCalendarTitle(task);
-      var searchStart = new Date(dueDate); searchStart.setMonth(searchStart.getMonth() - 1);
-      var searchEnd   = new Date(dueDate); searchEnd.setMonth(searchEnd.getMonth() + 1);
-      var existing = cal.getEvents(searchStart, searchEnd)
-        .filter(function(ev) { return ev.getTag('roumu_task_id') === String(task.id); });
-      if (existing.length === 0) {
-        var newEv = cal.createAllDayEvent(title, dueDate, { description: task.note || '', visibility: CalendarApp.Visibility.PRIVATE });
-        newEv.setVisibility(CalendarApp.Visibility.PRIVATE);
-        newEv.setTag('roumu_task_id', String(task.id));
-        // ダブルリマインダー: ①3営業日前9時 ②前営業日15時
-        newEv.addPopupReminder(calc3BizDaysAgo9amMins(dueDate));
-        newEv.addPopupReminder(calcPrevBizDay3pmMins(dueDate));
-        count++;
-      }
-    });
-    return { ok: true, synced: count };
-  } catch(e) {
-    return { ok: false, error: e.message };
-  }
-}
-
 function getCalEvents(dateStr, calendarId, email) {
   try {
     var cal = getCal(calendarId);
@@ -2246,33 +1997,8 @@ function _saveAnnualLocal(){ localStorage.setItem('annual_projects', JSON.string
 
 
 // ── 削除用：即時アップロード（デバウンスなし）──
-async function immediateSync() {
-  if (!isGasEnabled()) return;
-  if (_isSyncing) return; // 既に同期中なら重複防止
-  clearTimeout(_autoSyncTimer); // デバウンス中のものをキャンセル
-  _autoSyncTimer = null;
-  await _doUpload();
-}
 
 // ── 実際のアップロード処理（共通）──
-async function _doUpload() {
-  if (_isSyncing) return;
-  // トークン期限チェック → 期限切れなら自動更新
-  if (isGasEnabled() && isTokenExpired()) {
-    try { await refreshTokenSilently(); } catch(e) {}
-  }
-  _isSyncing = true;
-  setSyncStatus('💾 保存中...');
-  try {
-    await syncData(true, true);
-    _lastUploadTs = Date.now();
-    setSyncStatus('💾 ' + new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}) + ' 自動保存済');
-  } catch(e) {
-    setSyncStatus('⚠ 保存失敗');
-  } finally {
-    _isSyncing = false;
-  }
-}
 
 
 function saveTasks(){
@@ -2380,131 +2106,6 @@ function applyMeta(meta){
   if(meta.logo)     { loadLogo(); }
 }
 
-async function syncData(silent=false, uploadOnly=false){
-  if(!isGasEnabled()){
-    if(!silent) toast('⚠ GAS URLが未設定です。「管理 → 設定」から設定してください。',true);
-    return;
-  }
-  // 手動同期中は自動保存をブロック
-  _isSyncing = true;
-  const btn=document.getElementById('sync-btn');
-  if(btn){btn.classList.add('syncing');btn.innerHTML='<span class="spin"></span> 同期中...';btn.disabled=true;}
-  setSyncStatus('同期中...');
-  showLoading(uploadOnly ? '保存・同期中…' : '同期中…');
-  try{
-    const gasUrl = getGasUrl();
-
-    async function gasPost(params){
-      // URLSearchParams形式（application/x-www-form-urlencoded）でGASに送信
-      const sp = new URLSearchParams();
-      // SEC-01: OAuthトークンをGASに送信してサーバー側で検証
-      if (gAccessToken) sp.append('token', gAccessToken);
-      Object.entries(params).forEach(([k,v])=>
-        sp.append(k, typeof v==='string' ? v : JSON.stringify(v))
-      );
-      const res = await fetch(gasUrl, {
-        method:'POST',
-        headers:{'Content-Type':'application/x-www-form-urlencoded'},
-        body:sp.toString(),
-        redirect:'follow'
-      });
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-      try{ return JSON.parse(text); }
-      catch(e){ throw new Error('GASレスポンス解析失敗: '+text.slice(0,100)); }
-    }
-
-    async function gasGet(params){
-      // SEC-01: tokenをクエリパラメータに追加
-      const allParams = { ...params };
-      if (gAccessToken) allParams.token = gAccessToken;
-      const qs = Object.entries(allParams).map(([k,v])=>
-        encodeURIComponent(k)+'='+encodeURIComponent(typeof v==='string'?v:JSON.stringify(v))
-      ).join('&');
-      const res = await fetch(`${gasUrl}?${qs}`, { redirect:'follow' });
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-      try{ return JSON.parse(text); }
-      catch(e){ throw new Error('GASレスポンス解析失敗: '+text.slice(0,100)); }
-    }
-
-    // 1) アップロード（serverTs で楽観的ロック）
-    const saveData = await gasPost({
-      action:            'saveAll',
-      serverTs:          _serverTs,
-      updatedBy:         currentUser ? currentUser.name : 'unknown',
-      tasks:             JSON.stringify(tasks),
-      members:           JSON.stringify(MEMBERS),
-      meta:              JSON.stringify(buildMeta()),
-      leaveRecords:      JSON.stringify(leaveRecords),
-      leaveChecklists:   JSON.stringify(leaveChecklistPersons),
-      onboardingPersons: JSON.stringify(onboardingPersons),
-      topicItems:        JSON.stringify(getAllTopicItems()),
-      // 個人タスクはlocalStorageのみ管理（GAS同期なし）
-    });
-
-    // 競合チェック
-    if(saveData && saveData.error === 'conflict'){
-      const conflictBy = saveData.updatedBy ? `（最終更新者: ${saveData.updatedBy}）` : '';
-      const reload = confirm(
-        `⚠ 同期の競合が発生しました${conflictBy}\n\n別のメンバーがあなたより先に保存を行いました。\n\n【OK】→ サーバーの最新データで画面を更新します\n　　　（あなたの未保存の変更は上書きされます）\n【キャンセル】→ 今回の同期をスキップします\n　　　（あなたの変更内容は画面上に残ります）`
-      );
-      if(reload){
-        const freshData = await gasGet({ action: 'load' });
-        if(freshData.serverTs){ _serverTs=freshData.serverTs; localStorage.setItem('roumu_server_ts',_serverTs); }
-        applyLoadedData(freshData);
-        renderAll();
-        setSyncStatus('競合解消 — サーバーデータで上書き');
-        alertBanner('競合を解消しました。サーバーの最新データで画面を更新しました。','warn');
-      } else {
-        // キャンセル時もserverTsをサーバー値に合わせてリセット（無限ループ防止）
-        _serverTs = saveData.serverTs;
-        localStorage.setItem('roumu_server_ts', _serverTs);
-        setSyncStatus('同期スキップ（競合）');
-        alertBanner('同期をスキップしました（競合）。再度「同期」を押すと再試行できます。','warn');
-      }
-      return;
-    }
-
-    if(saveData && saveData.error) throw new Error('GASエラー(save): ' + saveData.error);
-    if(saveData && saveData.serverTs){ _serverTs=saveData.serverTs; localStorage.setItem('roumu_server_ts',_serverTs); }
-
-    // uploadOnlyモード（削除・ステータス変更等）はloadをスキップして画面を維持
-    if(uploadOnly){
-      const now=new Date();
-      setSyncStatus(`最終同期 ${pad(now.getHours())}:${pad(now.getMinutes())}`);
-      return;
-    }
-
-    // 2) ダウンロード
-    const data = await gasGet({ action: 'load' });
-    if(data.error) throw new Error('GASエラー: ' + data.error);
-    if(data.serverTs){ _serverTs=data.serverTs; localStorage.setItem('roumu_server_ts',_serverTs); }
-
-    applyLoadedData(data);
-    renderAll();
-    const now=new Date();
-    setSyncStatus(`最終同期 ${pad(now.getHours())}:${pad(now.getMinutes())}`);
-    toast('✅ 同期完了 — タスク・メンバー・設定をチームメンバー全員で共有しました');
-  }catch(e){
-    setSyncStatus('同期失敗');
-    const msg = e?.message || String(e) || '不明なエラー';
-    console.error('syncData error:', msg, e);
-    if(msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('CORS')){
-      alertBanner('同期失敗：ネットワークエラー。GASのデプロイ設定「アクセス：全員」をご確認ください');
-    } else if(msg.includes('HTTP 4') || msg.includes('HTTP 5')){
-      alertBanner(`同期失敗：GASサーバーエラー（${msg}）。GASを再デプロイしてください`);
-    } else if(msg.includes('GASエラー')){
-      alertBanner(`同期失敗：${msg}`);
-    } else {
-      alertBanner(`同期失敗：${msg.slice(0,80)}`);
-    }
-  }finally{
-    hideLoading();
-    _isSyncing = false;
-    if(btn){btn.classList.remove('syncing');btn.innerHTML='🔄 同期';btn.disabled=false;}
-  }
-}
 
 
 // トピック全月分のデータを取得

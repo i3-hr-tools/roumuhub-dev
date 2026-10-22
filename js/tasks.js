@@ -234,7 +234,6 @@ function bulkDelete(){
     const t = tasks.find(t=>String(t.id)===String(id));
     if(t && t.assignee && isGasEnabled()){
       const member = MEMBERS.find(m=>m.id===t.assignee);
-      if(member && member.email) autoDeleteTaskFromCalendar(id, t.title, member);
     }
   });
   // チームタスクから削除
@@ -247,7 +246,6 @@ function bulkDelete(){
     priv.forEach(t => {
       if(ids.includes(String(t.id)) && t.assignee && isGasEnabled()){
         const member = MEMBERS.find(m=>m.id===t.assignee);
-        if(member && member.email) autoDeleteTaskFromCalendar(t.id, t.title, member);
       }
     });
     const newPriv = priv.filter(t => !ids.includes(String(t.id)));
@@ -721,7 +719,6 @@ function updateTaskDueInTable(id, dateVal){
   t.due = dateVal ? dateVal+'T17:00' : '';
   saveTasks(); renderTaskTable([...document.querySelectorAll('#task-container tr[data-id]')].map(()=>null).filter(Boolean));
   renderTasks(); renderStats();
-  if(isGasEnabled()&&t.assignee&&t.due) autoSyncTaskToCalendar(t);
 }
 
 function toggleTableSort(col){
@@ -1352,7 +1349,6 @@ function changeStatus(id,status){
     toast(`ステータスを「${STATUS_LABELS[status]}」に変更しました`);
   }
   renderAll();
-  if(isGasEnabled()&&t.assignee&&t.due) autoSyncTaskToCalendar(t);
   // ステータス変更は重要操作 → 即時同期
   if(isGasEnabled()) immediateSync();
 }
@@ -1744,7 +1740,6 @@ function saveTask(){
         // 個人タスクのカレンダー同期（自分のカレンダーのみ）
         if(isGasEnabled()&&savedTask.due){
           const selfMember = currentUser ? MEMBERS.find(m=>m.id===currentUser.id) : null;
-          if(selfMember && selfMember.email) autoSyncTaskToCalendar({...savedTask, assignee: selfMember.id});
         }
         if(isGasEnabled()) immediateSync();
         return;
@@ -1777,7 +1772,6 @@ function saveTask(){
       // 個人タスクのカレンダー同期（自分のカレンダーのみ）
       if(isGasEnabled()&&savedTask.due){
         const selfMemberNew = currentUser ? MEMBERS.find(m=>m.id===currentUser.id) : null;
-        if(selfMemberNew && selfMemberNew.email) autoSyncTaskToCalendar({...savedTask, assignee: selfMemberNew.id});
       }
       if(isGasEnabled()) immediateSync();
       return;
@@ -1791,11 +1785,9 @@ function saveTask(){
   if(isGasEnabled()&&savedTask.due){
     if(!savedTask.private){
       // チームタスク：担当者のカレンダーに同期
-      if(savedTask.assignee) autoSyncTaskToCalendar(savedTask);
     } else {
       // 個人タスク：自分のカレンダーのみに同期
       const selfMember = currentUser ? MEMBERS.find(m=>m.id===currentUser.id) : null;
-      if(selfMember && selfMember.email) autoSyncTaskToCalendar({...savedTask, assignee: selfMember.id});
     }
   }
   // scheduleAutoSyncが3秒後に自動アップロードするため個別のsyncData不要
@@ -1912,7 +1904,6 @@ function delTask(e,id){
   // カレンダーから削除（非同期）
   if(t&&t.assignee&&isGasEnabled()){
     const member=MEMBERS.find(m=>m.id===t.assignee);
-    if(member&&member.email) autoDeleteTaskFromCalendar(id, t.title, member);
   }
   tasks=tasks.filter(t=>String(t.id)!==String(id));saveTasks();renderAll();toast('🗑 削除しました');
   if(isGasEnabled()) immediateSync();

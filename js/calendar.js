@@ -79,47 +79,6 @@ function renderGcalList(events){
   }).join('');
 }
 
-async function autoSyncTaskToCalendar(task){
-  if(!isGasEnabled()) return;
-  if(!task || !task.due || !task.assignee) return;
-  const member = MEMBERS.find(m => m.id === task.assignee);
-  if(!member || !member.email || !member.calendarId) return;
-  if(task.status === 'done'){
-    autoDeleteTaskFromCalendar(task.id, task.title, member);
-    return;
-  }
-  try {
-    const params = new URLSearchParams({
-      action: 'upsertTaskCalendar',
-      task:   JSON.stringify({ id: task.id, title: task.title, due: task.due, cat: task.cat, status: task.status, note: task.note || '' }),
-      member: JSON.stringify({ name: member.name, calendarId: member.calendarId, email: member.email }),
-    });
-    if(gAccessToken) params.append('token', gAccessToken);
-    await fetch(`${getGasUrl()}?${params}`, { redirect:'follow' });
-  } catch(e) {
-    console.warn('autoSyncTaskToCalendar failed:', e);
-    setSyncStatus('⚠ カレンダー同期失敗');
-  }
-}
-
-async function autoDeleteTaskFromCalendar(taskId, taskTitle, member){
-  if(!isGasEnabled()) return;
-  if(!member || !member.email || !member.calendarId) return;
-  try {
-    const params = new URLSearchParams({
-      action:    'deleteTaskCalendar',
-      taskId:    String(taskId),
-      taskTitle: taskTitle || '',
-      member:    JSON.stringify({ calendarId: member.calendarId, email: member.email }),
-    });
-    if(gAccessToken) params.append('token', gAccessToken);
-    await fetch(`${getGasUrl()}?${params}`, { redirect:'follow' });
-  } catch(e) {
-    console.warn('autoDeleteTaskFromCalendar failed:', e);
-    setSyncStatus('⚠ カレンダー削除失敗');
-  }
-}
-
 function renderCal(){
   document.getElementById('cal-label').textContent=`${cy}年${cm+1}月`;
   const dows=['日','月','火','水','木','金','土'];

@@ -90,6 +90,8 @@ async function _doUpload() {
     await syncData(true, true);
     _lastUploadTs = Date.now();
     setSyncStatus('💾 ' + new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}) + ' 自動保存済');
+    // 保存できたタイミングで、自分担当分のGoogle ToDoも最新化
+    syncMyGoogleTasks();
   } catch(e) {
     setSyncStatus('⚠ 保存失敗');
   } finally {
@@ -232,6 +234,7 @@ async function syncData(silent=false, uploadOnly=false){
     const now=new Date();
     setSyncStatus(`最終同期 ${pad(now.getHours())}:${pad(now.getMinutes())}`);
     toast('✅ 同期完了 — タスク・メンバー・設定をチームメンバー全員で共有しました');
+    syncMyGoogleTasks();
   }catch(e){
     setSyncStatus('同期失敗');
     const msg = e?.message || String(e) || '不明なエラー';

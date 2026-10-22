@@ -167,6 +167,8 @@ function doLogin(id){
           renderAll();
           setSyncStatus('✅ ' + new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}) + ' 取得完了');
         }
+        // ログイン直後に、自分担当の期限ありタスクをGoogle ToDoへ同期
+        syncMyGoogleTasks();
       })
       .catch(()=>setSyncStatus('⚠ データ取得失敗'));
     fetchTodayGcal();
