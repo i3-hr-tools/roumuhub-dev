@@ -135,46 +135,6 @@ async function completeAppLogin() {
   }
 }
 
-function switchUser() {
-  // Googleログアウトして再ログイン
-  if (gAccessToken) {
-    google.accounts.oauth2.revoke(gAccessToken, () => {});
-    gAccessToken = null;
-  }
-  document.getElementById('google-login-error').style.display = 'none';
-  document.getElementById('login-step-loading').style.display = 'none';
-  document.getElementById('login-step-google').style.display = 'block';
-  document.getElementById('user-select-modal').classList.add('open');
-}
-
-function renderUserSelect(){
-  const uoEl = document.getElementById('user-options');
-  if(!uoEl) return;
-  uoEl.innerHTML=MEMBERS.map(m=>`
-    <div class="user-option" onclick="startPinLogin('${m.id}')">
-      <div class="user-option-avatar" style="background:${m.color}">${m.initial}</div>
-      <div>
-        <div class="user-option-name">${m.name}</div>
-        <div class="user-option-role">${m.pin?'':' <span style="font-size:10px;color:var(--yellow);font-weight:600">PIN未設定</span>'}</div>
-      </div>
-      ${m.pin?'<span style="margin-left:auto;font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:6px;background:var(--green-light);color:var(--green);font-weight:700">🔒</span>':'<span style="margin-left:auto;font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:6px;background:var(--yellow-light);color:var(--yellow);font-weight:700">—</span>'}
-    </div>`).join('');
-}
-
-async function checkPin(){
-  const m = MEMBERS.find(m=>m.id===_pinTargetId);
-  if(!m) return;
-  const inputHash = await hashPin(_pinEntry);
-  if(inputHash === m.pin){
-    doLogin(_pinTargetId);
-  } else {
-    document.getElementById('pin-error').style.display = 'block';
-    const box = document.getElementById('pin-dots');
-    box.style.animation = 'pinShake .3s ease';
-    setTimeout(()=>{ box.style.animation=''; _pinEntry=''; updatePinDots(); }, 350);
-  }
-}
-
 function doLogin(id){
   currentUser = MEMBERS.find(m=>m.id===id);
   document.getElementById('user-select-modal').classList.remove('open');
@@ -211,15 +171,3 @@ function doLogin(id){
   }
 }
 
-function switchUser(){
-  _pinEntry = '';
-  const pinEl = document.getElementById('login-step-pin');
-  const memberEl = document.getElementById('login-step-member');
-  const pinErrEl = document.getElementById('pin-error');
-  if(pinEl) pinEl.style.display = 'none';
-  if(memberEl) memberEl.style.display = 'block';
-  if(pinErrEl) pinErrEl.style.display = 'none';
-  renderUserSelect();
-  const modal = document.getElementById('user-select-modal');
-  if(modal) modal.classList.add('open');
-}

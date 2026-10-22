@@ -9,41 +9,9 @@ function isGasEnabled(){
   return getGasUrl() !== 'YOUR_GAS_WEB_APP_URL_HERE';
 }
 
-async function testGasConnection(){
-  const url = document.getElementById('gas-url-input').value.trim();
-  const result = document.getElementById('gas-test-result');
-  const btn = document.getElementById('gas-test-btn');
-  if(!url){
-    showGasResult('error','⚠ URLを入力してください');
-    return;
-  }
-  if(!url.startsWith('https://script.google.com')){
-    showGasResult('warn','⚠ GASのURLは https://script.google.com から始まります。URLを確認してください。');
-    return;
-  }
-  btn.textContent = '⏳ テスト中...';
-  btn.disabled = true;
-  try{
-    const res = await fetch(`${url}?action=ping`, {method:'GET'});
-    const text = await res.text();
-    let data;
-    try{ data = JSON.parse(text); }catch(e){ data = {text}; }
-    if(res.ok){
-      showGasResult('success',`✅ 接続成功！GASに正常に接続できました。<br>レスポンス: ${JSON.stringify(data).slice(0,80)}`);
-    } else {
-      showGasResult('error',`❌ 接続失敗（ステータス: ${res.status}）<br>GASのデプロイ設定を確認してください。`);
-    }
-  }catch(e){
-    if(e.message.includes('Failed to fetch')||e.message.includes('CORS')){
-      showGasResult('warn','⚠ CORSエラーが発生しました。GASのデプロイ設定で「アクセスできるユーザー」を「全員」に変更してください。');
-    } else {
-      showGasResult('error',`❌ 接続エラー: ${e.message}`);
-    }
-  }finally{
-    btn.textContent = '🔌 接続テスト';
-    btn.disabled = false;
-  }
-}
+// testGasConnection は admin.js 側に定義を一本化（元々sync.jsとadmin.jsで内容が
+// 完全重複していたため、sync.jsからは削除。呼び出し元のHTML(gas-test-btn)は
+// スクリプト読み込み順でadmin.js側の定義が使われる）
 
 function saveGasUrl(){
   const url = document.getElementById('gas-url-input').value.trim();
@@ -298,7 +266,7 @@ function applyLoadedData(data){
     if(currentUser){
       currentUser = MEMBERS.find(m => m.id === currentUser.id) || currentUser;
     }
-    renderMemberList(); populateAssigneeSelects(); renderUserSelect();
+    renderMemberList(); populateAssigneeSelects();
   }
   if(data.meta){ applyMeta(data.meta); }
   if(data.leaveRecords){ leaveRecords=data.leaveRecords; saveLeaveRecords(); if(majorCat==='sankyuiku') renderLeaveGantt(); }

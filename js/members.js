@@ -119,7 +119,6 @@ async function saveMember(){
   renderMembersPanel();
   renderMemberList();
   populateAssigneeSelects();
-  renderUserSelect();
   toast(editId?'✏️ メンバーを更新しました':'👥 メンバーを追加しました');
   } finally {
     if(saveBtn) saveBtn.disabled=false;
@@ -142,7 +141,6 @@ function deleteMember(id){
   renderMembersPanel();
   renderMemberList();
   populateAssigneeSelects();
-  renderUserSelect();
   toast('🗑 メンバーを削除しました');
 }
 
