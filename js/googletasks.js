@@ -132,8 +132,10 @@ async function syncMyGoogleTasks(){
     const syncedKeys = new Set();
 
     // 全タスクを見て、「親タスク自身が自分担当」「子タスクだけ自分担当（親は別の人）」の
-    // 両方のケースを拾う
-    for(const t of tasks){
+    // 両方のケースを拾う。チームタスク（tasks）とプライベートタスク（getPrivateTasks）の
+    // 両方を対象にする（プライベートタスクは自分専用なので、常に自分担当として扱う）
+    const allTargetTasks = [...tasks, ...getPrivateTasks()];
+    for(const t of allTargetTasks){
       const parentIsMine = t.assignee === myId && !!t.due;
       let parentGoogleId = null;
       const key = 'p:' + t.id;
