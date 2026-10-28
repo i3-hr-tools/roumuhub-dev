@@ -87,7 +87,7 @@ function renderTopics(){
       const monthTag=active.length>1?`<span style="font-size:10px;font-family:var(--mono);padding:1px 6px;border-radius:4px;background:rgba(0,0,0,.06);color:var(--text3);margin-right:6px">${item._month}</span>`:'';
       return `<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 12px;border-radius:8px;background:${s.bg};border:1px solid ${s.border};margin-bottom:6px">
         <span style="font-size:14px;flex-shrink:0;margin-top:1px">${s.icon}</span>
-        <div style="flex:1;font-size:12px;color:${s.color};line-height:1.6;font-weight:500">${monthTag}<span style="display:flex;flex-wrap:wrap;align-items:center;gap:4px">${topicLabel(item)}${item.text}</span></div>
+        <div style="flex:1;font-size:12px;color:${s.color};line-height:1.6;font-weight:500">${monthTag}<span style="display:flex;flex-wrap:wrap;align-items:center;gap:4px">${topicLabel(item)}${escHtml(item.text)}</span></div>
         <span style="font-size:10px;color:var(--text3);white-space:nowrap;margin-top:2px">${item.by||''}</span>
       </div>`;
     }).join('');
@@ -111,7 +111,7 @@ function renderPastTopics(activeMonths){
       const s=TOPIC_STYLES[item.type]||TOPIC_STYLES.info;
       return `<div style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-radius:7px;background:${s.bg};border:1px solid ${s.border};margin-bottom:5px">
         <span style="font-size:13px;flex-shrink:0">${s.icon}</span>
-        <div style="flex:1;font-size:12px;color:${s.color};line-height:1.5">${item.text}</div>
+        <div style="flex:1;font-size:12px;color:${s.color};line-height:1.5">${escHtml(item.text)}</div>
         <span style="font-size:10px;color:var(--text3);white-space:nowrap">${item.by||''}</span>
       </div>`;
     }).join('');
@@ -149,7 +149,7 @@ function renderTopicEditList(){
     const s=TOPIC_STYLES[item.type]||TOPIC_STYLES.info;
     return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:7px;background:#fff;border:1px solid var(--border)">
       <span style="font-size:13px">${s.icon}</span>
-      <span style="flex:1;font-size:12px;color:var(--text)">${item.text}</span>
+      <span style="flex:1;font-size:12px;color:var(--text)">${escHtml(item.text)}</span>
       <span style="font-size:10px;color:var(--text3)">${item.by||''}</span>
       <button onclick="deleteTopic(${i})"
         style="padding:3px 7px;border-radius:5px;border:1px solid #fecaca;background:#fef2f2;color:var(--red);cursor:pointer;font-size:11px;font-family:var(--font);font-weight:600"

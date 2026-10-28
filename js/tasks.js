@@ -564,7 +564,7 @@ function renderComments(t){
         <span style="font-size:10px;color:var(--text3);margin-left:auto">${c.at||''}</span>
         ${c.userId===currentUser?.id?`<button onclick="deleteTaskComment('${t.id}',${i})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px" title="削除">✕</button>`:''}
       </div>
-      <div style="font-size:12px;color:var(--text);line-height:1.5;white-space:pre-wrap">${c.text}</div>
+      <div style="font-size:12px;color:var(--text);line-height:1.5;white-space:pre-wrap">${escHtml(c.text)}</div>
     </div>`).join('');
   list.scrollTop = list.scrollHeight;
 }
@@ -670,7 +670,7 @@ function showTaskDetail(id){
     <!-- メモ -->
     ${t.note?`<div style="margin-bottom:10px">
       <div style="font-size:10px;font-weight:700;color:var(--text3);letter-spacing:1px;margin-bottom:4px">メモ</div>
-      <div style="font-size:12px;color:var(--text2);line-height:1.6;padding:8px;background:var(--surface2);border-radius:7px;border:1px solid var(--border)">${t.note}</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.6;padding:8px;background:var(--surface2);border-radius:7px;border:1px solid var(--border)">${escHtml(t.note)}</div>
     </div>`:''}
 
     <!-- 子タスク -->
@@ -923,7 +923,7 @@ function renderTaskTable(list){
           ${!isChild&&t.private?'<span style="font-size:10px;padding:1px 5px;border-radius:4px;background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1">🔒</span>':''}
           ${!isChild&&t.rep?`<span style="font-size:10px;padding:1px 5px;border-radius:4px;background:#ede9fe;color:#7c3aed;border:1px solid #ddd6fe">${repLabel}</span>`:''}
         </div>
-        ${!isChild&&t.note?`<div style="font-size:11px;color:var(--text3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px">${t.note}</div>`:''}
+        ${!isChild&&t.note?`<div style="font-size:11px;color:var(--text3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px">${escHtml(t.note)}</div>`:''}
       </td>
       <td style="padding:${isChild?'6px 8px':'8px 12px'};white-space:nowrap">
         ${!isChild?`<span style="font-size:11px;padding:2px 8px;border-radius:8px;background:var(--surface2);color:var(--text2);border:1px solid var(--border)">${CAT_LABELS[t.cat]||t.cat||'-'}</span>`:''}
@@ -1596,14 +1596,14 @@ function renderApprovals(){
           ${due?`<span style="font-size:11px;color:var(--text3)">📅 ${due}</span>`:''}
           <span style="font-size:11px;color:var(--text3)">${CAT_LABELS[t.cat]||t.cat}</span>
         </div>
-        ${t.note?`<div style="font-size:11px;color:var(--text2);line-height:1.6">📝 ${t.note}</div>`:''}
+        ${t.note?`<div style="font-size:11px;color:var(--text2);line-height:1.6">📝 ${escHtml(t.note)}</div>`:''}
         ${t.comments&&t.comments.length?`
           <div style="margin-top:6px;border-top:1px solid var(--border);padding-top:6px">
             <div style="font-size:10px;font-family:var(--mono);color:var(--text3);margin-bottom:4px">コメント</div>
             ${t.comments.slice(-2).map(c=>{
               const u=MEMBERS.find(m=>m.id===c.userId);
               return `<div style="font-size:11px;color:var(--text2);margin-bottom:3px">
-                <span style="font-weight:600">${u?u.name:'?'}</span>: ${c.text}
+                <span style="font-weight:600">${escHtml(u?u.name:'?')}</span>: ${escHtml(c.text)}
               </div>`;
             }).join('')}
           </div>`:''}

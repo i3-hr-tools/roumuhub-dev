@@ -548,7 +548,7 @@ function previewAnnualCsv(event){
             <td style="padding:5px 10px">${r.title}</td>
             <td style="padding:5px 10px;font-family:var(--mono);color:var(--text2)">${r.due||'—'}</td>
             <td style="padding:5px 10px">${MEMBERS.find(m=>m.id===r.assignee)?.name||'—'}</td>
-            <td style="padding:5px 10px;color:var(--text3);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.note}">${r.note||'—'}</td>
+            <td style="padding:5px 10px;color:var(--text3);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(r.note)}">${escHtml(r.note)||'—'}</td>
           </tr>`).join('')}
           ${annualCsvParsed.length>10?`<tr><td colspan="4" style="padding:5px 10px;color:var(--text3);text-align:center">… 他${annualCsvParsed.length-10}件</td></tr>`:''}
         </tbody>`;

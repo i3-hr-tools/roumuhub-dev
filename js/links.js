@@ -72,7 +72,7 @@ function linkCardHTML(l){
     </div>
     <div style="flex:1;min-width:0">
       <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px">${l.name}</div>
-      ${l.note?`<div style="font-size:11px;color:var(--text3);margin-bottom:8px">${l.note}</div>`:'<div style="margin-bottom:8px"></div>'}
+      ${l.note?`<div style="font-size:11px;color:var(--text3);margin-bottom:8px">${escHtml(l.note)}</div>`:'<div style="margin-bottom:8px"></div>'}
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <a href="${l.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
           style="font-size:12px;color:#fff;background:var(--accent);text-decoration:none;padding:5px 12px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;transition:all .12s;font-weight:600;box-shadow:var(--shadow-sm)"

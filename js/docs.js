@@ -52,7 +52,7 @@ function renderDocList(){
           onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
           📄 ${d.name}
         </a>
-        ${d.note?`<div style="font-size:11px;color:var(--text3);margin-top:2px">${d.note}</div>`:''}
+        ${d.note?`<div style="font-size:11px;color:var(--text3);margin-top:2px">${escHtml(d.note)}</div>`:''}
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:3px">
         ${(d.tags||[]).map(t=>`<span style="font-size:10px;padding:1px 7px;border-radius:10px;background:var(--blue-light);color:var(--blue);font-weight:600;font-family:var(--mono)">${t}</span>`).join('')}
