@@ -1306,8 +1306,13 @@ function changeStatus(id,status){
     isPriv = true;
   }
   if(!t) return;
+  const prevStatusForLog = t.status;
   t.status = status;
   if(status==='done') t.completedAt = new Date().toISOString().split('T')[0];
+  if(!isPriv && prevStatusForLog!==status){
+    const stLabels={todo:'未着手',inprogress:'進行中',review:'承認待ち',done:'完了'};
+    logActivity('status', t, `ステータス: ${stLabels[prevStatusForLog]||prevStatusForLog} → ${stLabels[status]||status}`);
+  }
   else delete t.completedAt;
   if(status==='done' && t.rep){
     let nextDue = '';
@@ -1816,6 +1821,7 @@ function saveTask(){
 
   saveTasks();closeModal('modal-overlay');renderAll();
   toast('💾 保存しました');
+  logActivity(editId?'updated':'created', savedTask, editId?'タスク内容を編集':'新規タスクを作成');
   // 個人タスクも期限があればカレンダー同期（自分のカレンダーのみ）
   if(isGasEnabled()&&savedTask.due){
     if(!savedTask.private){
@@ -1936,7 +1942,9 @@ function editTask(e,id){
 function delTask(e,id){
   e.stopPropagation();if(!confirm('削除しますか？'))return;
   // 通常タスクに無ければプライベートタスクを削除する
-  if(tasks.find(t=>String(t.id)===String(id))){
+  const teamMatch=tasks.find(t=>String(t.id)===String(id));
+  if(teamMatch){
+    logActivity('deleted', teamMatch, 'タスクを削除');
     tasks=tasks.filter(t=>String(t.id)!==String(id));
     saveTasks();
     if(isGasEnabled()) immediateSync();

@@ -410,6 +410,13 @@
     </div>
     <!-- 承認ログコンテンツ -->
     <div id="admin-log-content" style="display:none;flex:1;flex-direction:column;overflow:hidden">
+      <div style="display:flex;gap:6px;padding:10px 16px 0;border-bottom:1px solid var(--border);background:var(--surface2)">
+        <button id="logsub-tab-approval" class="filter-chip active" onclick="switchLogSubTab('approval')">📋 承認ログ</button>
+        <button id="logsub-tab-activity" class="filter-chip" onclick="switchLogSubTab('activity')">📝 操作ログ</button>
+      </div>
+
+      <!-- 承認ログ -->
+      <div id="logsub-approval" style="display:flex;flex-direction:column;overflow:hidden;flex:1">
       <div class="log-header">
         <div>
           <div class="log-title">📋 承認ログ</div>
@@ -438,6 +445,35 @@
         </div>
       </div>
       <div class="log-table-wrap"><div id="log-table-area"></div></div>
+      </div>
+
+      <!-- 操作ログ -->
+      <div id="logsub-activity" style="display:none;flex-direction:column;overflow:hidden;flex:1">
+        <div class="log-header">
+          <div>
+            <div class="log-title">📝 操作ログ</div>
+            <div class="log-sub">誰が・いつ・何を変更したかの記録（作成・編集・ステータス変更・削除）</div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost" onclick="exportActivityLogCsv()" style="font-size:12px">⬇ CSVエクスポート</button>
+            <button class="btn btn-ghost" onclick="clearActivityLog()" style="font-size:12px;color:var(--red)">🗑 ログ削除</button>
+          </div>
+        </div>
+        <div class="log-filter-bar">
+          <button class="filter-chip active" onclick="setActivityLogFilter('all',this)">すべて</button>
+          <button class="filter-chip" onclick="setActivityLogFilter('created',this)">🆕 作成</button>
+          <button class="filter-chip" onclick="setActivityLogFilter('updated',this)">✏️ 編集</button>
+          <button class="filter-chip" onclick="setActivityLogFilter('status',this)">🔄 ステータス変更</button>
+          <button class="filter-chip" onclick="setActivityLogFilter('deleted',this)">🗑 削除</button>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+            <span style="font-size:11px;color:var(--text3)">操作者：</span>
+            <select class="form-input" id="activity-log-member-filter" onchange="renderActivityLogTable()" style="padding:4px 8px;font-size:11px;width:auto">
+              <option value="all">全員</option>
+            </select>
+          </div>
+        </div>
+        <div class="log-table-wrap"><div id="activity-log-table-area"></div></div>
+      </div>
     </div>
     <!-- 設定コンテンツ -->
     <div id="admin-settings-content" style="display:none;flex:1;overflow-y:auto;background:var(--bg);padding:24px 28px">
@@ -1938,6 +1974,37 @@ let linkCatFilter='all';
 // ══ APPROVAL LOG ══
 let approvalLogs=JSON.parse(localStorage.getItem('approval_logs')||'[]');
 let logFilter='all';
+
+// ══ 操作ログ（タスクの作成・編集・ステータス変更・削除を記録） ══
+// 内部統制・不具合調査用に「誰が・いつ・何を」変更したかを残す。承認ログとは別管理。
+let activityLogs=JSON.parse(localStorage.getItem('activity_logs')||'[]');
+let activityLogFilter='all';
+const ACTIVITY_LOG_MAX=1000; // 肥大化防止のため上限件数を超えたら古い順に切り捨てる
+
+function saveActivityLogs(){
+  if(activityLogs.length>ACTIVITY_LOG_MAX) activityLogs=activityLogs.slice(-ACTIVITY_LOG_MAX);
+  localStorage.setItem('activity_logs',JSON.stringify(activityLogs));
+}
+
+// action: 'created' | 'updated' | 'status' | 'deleted'
+// detail: 変更内容を簡潔に表す文字列（例: 'ステータス: 未着手 → 進行中'）
+function logActivity(action,task,detail){
+  if(!task) return;
+  const now=new Date();
+  activityLogs.push({
+    id:'alog'+Date.now()+Math.random().toString(36).slice(2,6),
+    action,
+    taskId:task.id,
+    taskTitle:task.title||'(無題)',
+    taskCat:task.cat||'',
+    actorId:currentUser?.id||'',
+    actorName:currentUser?.name||'不明',
+    detail:detail||'',
+    at:now.toISOString(),
+    atLabel:`${now.getMonth()+1}/${now.getDate()} ${('0'+now.getHours()).slice(-2)}:${('0'+now.getMinutes()).slice(-2)}`,
+  });
+  saveActivityLogs();
+}
 
 
 

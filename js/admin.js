@@ -188,6 +188,88 @@ function switchResTab(tab){
 
 function saveLogs(){localStorage.setItem('approval_logs',JSON.stringify(approvalLogs));}
 
+// ══ 承認ログ／操作ログのサブタブ切替 ══
+function switchLogSubTab(tab){
+  const isApproval=(tab==='approval');
+  document.getElementById('logsub-tab-approval').classList.toggle('active',isApproval);
+  document.getElementById('logsub-tab-activity').classList.toggle('active',!isApproval);
+  document.getElementById('logsub-approval').style.display=isApproval?'flex':'none';
+  document.getElementById('logsub-activity').style.display=isApproval?'none':'flex';
+  if(!isApproval) renderActivityLogTable();
+}
+
+const ACTIVITY_ACTION_LABELS={created:'🆕 作成',updated:'✏️ 編集',status:'🔄 ステータス変更',deleted:'🗑 削除'};
+const ACTIVITY_ACTION_COLORS={created:'var(--green)',updated:'var(--blue)',status:'#8b5cf6',deleted:'var(--red)'};
+
+function setActivityLogFilter(f,el){
+  activityLogFilter=f;
+  document.querySelectorAll('#logsub-activity .filter-chip').forEach(c=>c.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderActivityLogTable();
+}
+
+function renderActivityLogTable(){
+  const sel=document.getElementById('activity-log-member-filter');
+  if(sel && sel.children.length===1){
+    MEMBERS.forEach(m=>{
+      const o=document.createElement('option');o.value=m.id;o.textContent=m.name;sel.appendChild(o);
+    });
+  }
+  const memberFiltVal=sel?.value||'all';
+  let list=[...activityLogs].reverse(); // 新しい順
+  if(activityLogFilter!=='all') list=list.filter(l=>l.action===activityLogFilter);
+  if(memberFiltVal!=='all') list=list.filter(l=>l.actorId===memberFiltVal);
+
+  const area=document.getElementById('activity-log-table-area');
+  if(!area) return;
+  if(!list.length){
+    area.innerHTML=`<div class="log-empty"><div style="font-size:32px;margin-bottom:10px;opacity:.3">📝</div>ログがありません</div>`;
+    return;
+  }
+  area.innerHTML=`<table class="log-table">
+    <thead><tr>
+      <th>日時</th>
+      <th>操作</th>
+      <th>タスク名</th>
+      <th>カテゴリ</th>
+      <th>操作者</th>
+      <th>詳細</th>
+    </tr></thead>
+    <tbody>${list.map(l=>{
+      const cat=CAT_LABELS[l.taskCat]||l.taskCat||'-';
+      const color=ACTIVITY_ACTION_COLORS[l.action]||'var(--text2)';
+      const label=ACTIVITY_ACTION_LABELS[l.action]||l.action;
+      return `<tr>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--text2);white-space:nowrap">${escHtml(l.atLabel)}</td>
+        <td><span class="log-badge" style="background:${color}22;color:${color};border:1px solid ${color}44">${label}</span></td>
+        <td style="font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(l.taskTitle)}">${escHtml(l.taskTitle)}</td>
+        <td><span class="tag tag-cat" style="font-size:10px">${escHtml(cat)}</span></td>
+        <td style="font-size:12px;font-weight:600">${escHtml(l.actorName)}</td>
+        <td style="font-size:11px;color:var(--text2)">${escHtml(l.detail)||'—'}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+function exportActivityLogCsv(){
+  if(!activityLogs.length){toast('⚠ エクスポートするログがありません',true);return;}
+  const header=['日時','操作','タスク名','カテゴリ','操作者','詳細'];
+  const rows=activityLogs.map(l=>[
+    l.atLabel,ACTIVITY_ACTION_LABELS[l.action]||l.action,l.taskTitle,CAT_LABELS[l.taskCat]||l.taskCat||'',l.actorName,l.detail||'',
+  ]);
+  const csv='\uFEFF'+[header,...rows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=`操作ログ_${fmt(new Date())}.csv`;a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  toast(`⬇ ${activityLogs.length}件の操作ログをエクスポートしました`);
+}
+
+function clearActivityLog(){
+  if(!confirm(`操作ログを全件削除しますか？\n※この操作は取り消せません（${activityLogs.length}件）`))return;
+  activityLogs=[];saveActivityLogs();renderActivityLogTable();toast('🗑 操作ログを削除しました');
+}
+
 function setLogFilter(f,el){
   logFilter=f;
   document.querySelectorAll('.log-filter-bar .filter-chip').forEach(c=>c.classList.remove('active'));
