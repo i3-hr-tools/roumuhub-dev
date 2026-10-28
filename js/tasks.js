@@ -24,7 +24,7 @@ function renderTodayTasks(){
   el.innerHTML=list.map(t=>{
     const member=MEMBERS.find(m=>m.id===t.assignee);
     return `<div style="padding:6px 8px;border-radius:6px;background:#fff;border:1px solid var(--border);margin-bottom:4px;cursor:pointer;transition:all .12s"
-      onclick="highlightTask(${t.id})"
+      onclick="highlightTask('${t.id}')"
       onmouseover="this.style.borderColor='var(--red)'" onmouseout="this.style.borderColor='var(--border)'">
       <div style="font-size:11px;font-weight:600;color:var(--text);line-height:1.3;margin-bottom:2px">${escHtml(t.title)}</div>
       <div style="display:flex;align-items:center;gap:5px">
@@ -346,12 +346,12 @@ function renderArchivePanel(){
                   ${t.note?`<span style="font-size:10px;color:var(--text3)">📝 ${t.note.slice(0,30)}${t.note.length>30?'…':''}</span>`:''}
                 </div>
               </div>
-              <button onclick="restoreFromArchive(${t.id})"
+              <button onclick="restoreFromArchive('${t.id}')"
                 style="font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:#fff;color:var(--text2);cursor:pointer;white-space:nowrap;flex-shrink:0;font-family:var(--font)"
                 onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
                 onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'"
                 title="タスクを未着手に戻す">↩ 元に戻す</button>
-              <button onclick="permanentDeleteTask(${t.id})"
+              <button onclick="permanentDeleteTask('${t.id}')"
                 style="font-size:11px;padding:4px 8px;border-radius:6px;border:1px solid #fecaca;background:#fef2f2;color:var(--red);cursor:pointer;flex-shrink:0;font-family:var(--font)"
                 onmouseover="this.style.background='var(--red)';this.style.color='#fff'"
                 onmouseout="this.style.background='#fef2f2';this.style.color='var(--red)'"
@@ -562,7 +562,7 @@ function renderComments(t){
         ${c.userColor?`<span style="width:18px;height:18px;border-radius:50%;background:${c.userColor};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff">${c.userInitial||'?'}</span>`:''}
         <span style="font-size:11px;font-weight:700;color:var(--text)">${c.userName||'不明'}</span>
         <span style="font-size:10px;color:var(--text3);margin-left:auto">${c.at||''}</span>
-        ${c.userId===currentUser?.id?`<button onclick="deleteTaskComment(${t.id},${i})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px" title="削除">✕</button>`:''}
+        ${c.userId===currentUser?.id?`<button onclick="deleteTaskComment('${t.id}',${i})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px" title="削除">✕</button>`:''}
       </div>
       <div style="font-size:12px;color:var(--text);line-height:1.5;white-space:pre-wrap">${c.text}</div>
     </div>`).join('');
@@ -681,7 +681,7 @@ function showTaskDetail(id){
       </div>
       ${subs.map(s=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
         <input type="checkbox" ${s.status==='done'?'checked':''} style="width:14px;height:14px;accent-color:var(--accent)"
-          onchange="toggleSubInDetail(${t.id},'${s.id}',this.checked)">
+          onchange="toggleSubInDetail('${t.id}','${s.id}',this.checked)">
         <span style="font-size:12px;color:${s.status==='done'?'var(--text3)':'var(--text)'};text-decoration:${s.status==='done'?'line-through':'none'}">${escHtml(s.title)}</span>
       </div>`).join('')}
     </div>`:''}
@@ -696,7 +696,7 @@ function showTaskDetail(id){
 
     <!-- 完了ボタン -->
     <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
-      <button onclick="toggleTableTaskDone(${t.id}, ${t.status!=='done'}); showTaskDetail(${t.id})"
+      <button onclick="toggleTableTaskDone('${t.id}', ${t.status!=='done'}); showTaskDetail('${t.id}')"
         style="width:100%;padding:8px;border-radius:8px;border:2px solid ${t.status==='done'?'var(--border)':'var(--green)'};background:${t.status==='done'?'var(--surface2)':'var(--green-light)'};color:${t.status==='done'?'var(--text2)':'var(--green)'};font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);transition:all .15s"
         onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
         ${t.status==='done'?'↩ 未着手に戻す':'✅ 完了にする'}
@@ -896,8 +896,8 @@ function renderTaskTable(list){
     return `<tr data-id="${t.id}" draggable="${!isChild}" style="background:${bg};border-bottom:1px solid ${isChild?'#bae6fd':'#e2e8f0'};transition:background .1s;${!isChild?'cursor:pointer':''}"
       onmouseover="this.style.background='${isChild?'#e0f2fe':'var(--accent-light)'}'"
       onmouseout="this.style.background='${bg}'"
-      ondblclick="editTask(event,${t.id})"
-      ${!isChild?`ondragstart="tableDragStart(event,${t.id})" ondragover="tableDragOver(event)" ondrop="tableDrop(event,${t.id})" ondragend="tableDragEnd(event)"`:''}>
+      ondblclick="editTask(event,'${t.id}')"
+      ${!isChild?`ondragstart="tableDragStart(event,'${t.id}')" ondragover="tableDragOver(event)" ondrop="tableDrop(event,'${t.id}')" ondragend="tableDragEnd(event)"`:''}>
       <td style="padding:${isChild?'6px 12px 6px 36px':'8px 12px'}">
         ${!isChild
           ? `<div style="display:flex;align-items:center;gap:6px">
@@ -910,12 +910,12 @@ function renderTaskTable(list){
       <!-- 完了チェック -->
       <td style="padding:${isChild?'6px 4px':'8px 4px'};width:28px">
         <input type="checkbox" ${isDone?'checked':''} title="完了にする"
-          onchange="toggleTableTaskDone(${t.id},this.checked)"
+          onchange="toggleTableTaskDone('${t.id}',this.checked)"
           style="width:15px;height:15px;accent-color:var(--green);cursor:pointer;flex-shrink:0">
       </td>
       <td style="padding:${isChild?'6px 8px':'8px 12px'};max-width:260px">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-          ${!isChild&&hasChildren?`<span onclick="event.stopPropagation();toggleTableExpand(${t.id})" style="cursor:pointer;color:var(--text3);font-size:12px;transition:transform .2s;display:inline-block;transform:${isExpanded?'rotate(90deg)':'rotate(0deg)'};user-select:none" title="子タスクを展開">▶</span>`:''}
+          ${!isChild&&hasChildren?`<span onclick="event.stopPropagation();toggleTableExpand('${t.id}')" style="cursor:pointer;color:var(--text3);font-size:12px;transition:transform .2s;display:inline-block;transform:${isExpanded?'rotate(90deg)':'rotate(0deg)'};user-select:none" title="子タスクを展開">▶</span>`:''}
           ${isChild?'<span style="font-size:11px;color:#0369a1;margin-right:2px">▸</span>':''}
           <span id="tbl-title-${t.id}"
             style="font-weight:${isChild?'500':'600'};color:${isChild?'#0369a1':isDone?'var(--text3)':'var(--text)'};font-size:${isChild?'11px':'12px'};line-height:1.4;text-decoration:${isDone?'line-through':'none'}"
@@ -937,7 +937,7 @@ function renderTaskTable(list){
       <td style="padding:${isChild?'6px 6px':'6px 8px'};white-space:nowrap" onclick="event.stopPropagation()">
         ${!isChild
           ? `<input type="date" value="${dueStr||''}"
-              onchange="updateTaskDueInTable(${t.id},this.value)"
+              onchange="updateTaskDueInTable('${t.id}',this.value)"
               style="border:1px solid ${isOverdue?'var(--red)':isToday?'#f59e0b':'var(--border)'};border-radius:6px;padding:4px 6px;font-size:12px;font-family:var(--mono);font-weight:${isOverdue||isToday?'700':'500'};color:${isOverdue?'var(--red)':isToday?'#f59e0b':'var(--text)'};background:${isOverdue?'#fef2f2':isToday?'#fffbeb':'#fff'};cursor:pointer;width:130px">
              ${isOverdue?'<div style="font-size:10px;color:var(--red);font-weight:700">⚠ 期限超過</div>':''}
              ${isToday?'<div style="font-size:10px;color:#f59e0b;font-weight:700">📅 今日</div>':''}`
@@ -1177,14 +1177,14 @@ function cardHTML(t){
         <div class="st-prog-bar"><div class="st-prog-fill" id="stpf-${t.id}" style="width:${pct}%"></div></div>`:''}
         <div id="st-list-${t.id}">${subs.map(s=>stRowHTML(t.id,s)).join('')}</div>
         <div class="st-add-row" onclick="event.stopPropagation()">
-          <input class="st-add-input" id="st-inp-${t.id}" placeholder="子タスクを追加..." onkeydown="if(event.key==='Enter'){event.preventDefault();quickAddSubtask(${t.id})}">
-          <button class="st-add-btn" onclick="quickAddSubtask(${t.id})">追加</button>
+          <input class="st-add-input" id="st-inp-${t.id}" placeholder="子タスクを追加..." onkeydown="if(event.key==='Enter'){event.preventDefault();quickAddSubtask('${t.id}')}">
+          <button class="st-add-btn" onclick="quickAddSubtask('${t.id}')">追加</button>
         </div>
       </div>
     </div>`;
   return `<div class="task-card status-${t.status}" id="card-${t.id}"
     onclick="toggleCard('${t.id}',event)"
-    onkeydown="handleCardKey(event,${t.id})">
+    onkeydown="handleCardKey(event,'${t.id}')">
     <div class="task-card-top">
       <!-- チェックボックス -->
       <div onclick="event.stopPropagation()" style="padding-top:2px;flex-shrink:0">
@@ -1195,7 +1195,7 @@ function cardHTML(t){
       <div class="task-body">
         <div class="task-title" id="title-wrap-${t.id}">
           <span id="arrow-${t.id}" onclick="event.stopPropagation();expandCard('${t.id}')" style="font-size:11px;color:var(--text3);margin-right:5px;display:inline-block;transition:transform .2s;cursor:pointer;padding:2px 4px;border-radius:3px" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'" title="子タスクを展開">▶</span>
-          <span id="title-text-${t.id}" ondblclick="startInlineEdit(event,${t.id})" title="ダブルクリックでタイトル編集" style="cursor:text">${escHtml(t.title)}</span>
+          <span id="title-text-${t.id}" ondblclick="startInlineEdit(event,'${t.id}')" title="ダブルクリックでタイトル編集" style="cursor:text">${escHtml(t.title)}</span>
           ${t.private?'<span style="font-size:10px;padding:1px 5px;border-radius:5px;background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;margin-left:4px">🔒 個人</span>':''}
           ${subs.length?`<span style="font-size:10px;font-family:var(--mono);font-weight:600;padding:1px 7px;border-radius:10px;margin-left:6px;background:${doneCount===subs.length&&subs.length>0?'var(--accent-light)':'var(--surface2)'};color:${doneCount===subs.length&&subs.length>0?'var(--accent)':'var(--text3)'}">${doneCount}/${subs.length}</span>`:''}
           ${privateTag}
@@ -1220,15 +1220,15 @@ function cardHTML(t){
           title="完了にする"
           onmouseover="this.style.borderColor='var(--green)'"
           onmouseout="this.style.borderColor='${t.status==='done'?'var(--green)':'var(--border)'}'">
-          <input type="checkbox" ${t.status==='done'?'checked':''} onchange="changeStatus(${t.id},this.checked?'done':'todo')"
+          <input type="checkbox" ${t.status==='done'?'checked':''} onchange="changeStatus('${t.id}',this.checked?'done':'todo')"
             style="width:15px;height:15px;accent-color:var(--green);cursor:pointer;flex-shrink:0">
           <span style="font-size:10px;font-weight:700;color:${t.status==='done'?'var(--green)':'var(--text3)'};white-space:nowrap">${t.status==='done'?'完了':'完了'}</span>
         </label>
-        <button class="icon-btn" onclick="quickEditToggle(event,${t.id})" title="クイック編集（期限・担当者）" style="font-size:13px">⚡</button>
-        <button class="icon-btn" onclick="enterSelectMode(event,${t.id},'copy')" title="複製">📋</button>
-        <button class="icon-btn" onclick="event.stopPropagation();openCommentModal(${t.id})" title="コメント" style="position:relative">💬${(t.comments||[]).length?`<span style="position:absolute;top:-3px;right:-3px;min-width:14px;height:14px;border-radius:7px;background:var(--accent);color:#fff;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 2px">${(t.comments||[]).length}</span>`:''}</button>
+        <button class="icon-btn" onclick="quickEditToggle(event,'${t.id}')" title="クイック編集（期限・担当者）" style="font-size:13px">⚡</button>
+        <button class="icon-btn" onclick="enterSelectMode(event,'${t.id}','copy')" title="複製">📋</button>
+        <button class="icon-btn" onclick="event.stopPropagation();openCommentModal('${t.id}')" title="コメント" style="position:relative">💬${(t.comments||[]).length?`<span style="position:absolute;top:-3px;right:-3px;min-width:14px;height:14px;border-radius:7px;background:var(--accent);color:#fff;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 2px">${(t.comments||[]).length}</span>`:''}</button>
         <button class="icon-btn" onclick="editTask(event,'${t.id}')" title="編集">✏️</button>
-        <button class="icon-btn" onclick="enterSelectMode(event,${t.id},'delete')" title="削除">🗑</button>
+        <button class="icon-btn" onclick="enterSelectMode(event,'${t.id}','delete')" title="削除">🗑</button>
       </div>
     </div>
     <!-- クイック編集バー -->
@@ -1252,8 +1252,8 @@ function cardHTML(t){
         <span class="qe-label">メモ</span>
         <input class="qe-input" id="qe-note-${t.id}" value="${(t.note||'').replace(/"/g,'&quot;')}" placeholder="メモ" style="width:160px">
       </div>
-      <button class="qe-save" onclick="saveQuickEdit(${t.id})">保存</button>
-      <button class="qe-cancel" onclick="quickEditToggle(event,${t.id})">✕</button>
+      <button class="qe-save" onclick="saveQuickEdit('${t.id}')">保存</button>
+      <button class="qe-cancel" onclick="quickEditToggle(event,'${t.id}')">✕</button>
     </div>
     ${filesHTML?`<div style="padding:0 14px 8px">${filesHTML}</div>`:''}
     ${subtasksHTML}
@@ -1583,7 +1583,7 @@ function renderApprovals(){
     const member=MEMBERS.find(m=>m.id===t.assignee);
     const due=t.due?t.due.split('T')[0].replace(/-/g,'/'):'';
     return `<div class="approval-item" style="flex-direction:column;align-items:stretch;cursor:pointer"
-      onclick="toggleApprovalDetail(${t.id})">
+      onclick="toggleApprovalDetail('${t.id}')">
       <div style="display:flex;align-items:center;gap:8px">
         <div style="flex:1;font-size:12px;font-weight:600;color:var(--text)">${escHtml(t.title)}</div>
         <button class="appr-btn ok" onclick="event.stopPropagation();approve('${t.id}',true)">✓ 承認</button>
@@ -1608,7 +1608,7 @@ function renderApprovals(){
             }).join('')}
           </div>`:''}
         <div style="margin-top:8px;text-align:right">
-          <button onclick="event.stopPropagation();focusTask(${t.id})" style="font-size:11px;padding:3px 10px;border-radius:5px;border:1px solid var(--accent);background:var(--accent-light);color:var(--accent);cursor:pointer;font-family:var(--font)">タスクを開く →</button>
+          <button onclick="event.stopPropagation();focusTask('${t.id}')" style="font-size:11px;padding:3px 10px;border-radius:5px;border:1px solid var(--accent);background:var(--accent-light);color:var(--accent);cursor:pointer;font-family:var(--font)">タスクを開く →</button>
         </div>
       </div>
     </div>`;
@@ -1695,7 +1695,7 @@ function renderReminders(){
     const member=MEMBERS.find(m=>m.id===t.assignee);
     if(type==='overdue'){
       const when=df===0?'今日が期限':`${df}日超過`;
-      return `<div class="remind-item" onclick="highlightTask(${t.id})" ondblclick="focusTask(${t.id})" style="cursor:pointer" title="クリック:スクロール / ダブルクリック:このタスクのみ表示">
+      return `<div class="remind-item" onclick="highlightTask('${t.id}')" ondblclick="focusTask('${t.id}')" style="cursor:pointer" title="クリック:スクロール / ダブルクリック:このタスクのみ表示">
         <div class="remind-dot red"></div>
         <div style="flex:1">
           <div class="remind-text">⚠ ${escHtml(t.title)}</div>
@@ -1705,7 +1705,7 @@ function renderReminders(){
     } else {
       const dot=df===0?'red':df<=2?'yellow':'green';
       const when=df===0?'今日が期限':`あと${df}日`;
-      return `<div class="remind-item" onclick="highlightTask(${t.id})" ondblclick="focusTask(${t.id})" style="cursor:pointer" title="クリック:スクロール / ダブルクリック:このタスクのみ表示">
+      return `<div class="remind-item" onclick="highlightTask('${t.id}')" ondblclick="focusTask('${t.id}')" style="cursor:pointer" title="クリック:スクロール / ダブルクリック:このタスクのみ表示">
         <div class="remind-dot ${dot}"></div>
         <div style="flex:1">
           <div class="remind-text">${escHtml(t.title)}</div>
