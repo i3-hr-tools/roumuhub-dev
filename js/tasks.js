@@ -714,10 +714,17 @@ function closeTaskDetail(){
 }
 
 function updateTaskDueInTable(id, dateVal){
-  const t = tasks.find(x=>x.id===id);
+  let t = tasks.find(x=>String(x.id)===String(id));
+  let isPriv = false, privArr = [];
+  if(!t){
+    privArr = getPrivateTasks();
+    t = privArr.find(x=>String(x.id)===String(id));
+    isPriv = true;
+  }
   if(!t) return;
   t.due = dateVal ? dateVal+'T17:00' : '';
-  saveTasks(); renderTaskTable([...document.querySelectorAll('#task-container tr[data-id]')].map(()=>null).filter(Boolean));
+  if(isPriv){ savePrivateTasks(privArr); } else { saveTasks(); }
+  renderTaskTable([...document.querySelectorAll('#task-container tr[data-id]')].map(()=>null).filter(Boolean));
   renderTasks(); renderStats();
 }
 
@@ -735,18 +742,33 @@ function toggleTableExpand(id){
 }
 
 function toggleTableTaskDone(id, checked){
-  const t = tasks.find(x=>x.id===id);
+  // 通常タスク・プライベートタスクの両方を探す（プライベートの場合は保存先も切り替える）
+  let t = tasks.find(x=>String(x.id)===String(id));
+  let isPriv = false, privArr = [];
+  if(!t){
+    privArr = getPrivateTasks();
+    t = privArr.find(x=>String(x.id)===String(id));
+    isPriv = true;
+  }
   if(!t) return;
   t.status = checked ? 'done' : 'todo';
-  saveTasks(); renderTasks(); renderStats();
-  if(isGasEnabled()) syncData(true, true);
+  if(checked) t.completedAt = new Date().toISOString().split('T')[0];
+  if(isPriv){ savePrivateTasks(privArr); } else { saveTasks(); }
+  renderTasks(); renderStats();
+  if(!isPriv && isGasEnabled()) syncData(true, true);
 }
 
 function startTableTitleEdit(event, id){
   event.stopPropagation();
   const span = document.getElementById(`tbl-title-${id}`);
   if(!span) return;
-  const t = tasks.find(x=>x.id===id);
+  let t = tasks.find(x=>String(x.id)===String(id));
+  let isPriv = false, privArr = [];
+  if(!t){
+    privArr = getPrivateTasks();
+    t = privArr.find(x=>String(x.id)===String(id));
+    isPriv = true;
+  }
   if(!t) return;
   const oldTitle = t.title;
   const input = document.createElement('input');
@@ -759,8 +781,7 @@ function startTableTitleEdit(event, id){
     const newTitle = input.value.trim();
     if(newTitle && newTitle !== oldTitle){
       t.title = newTitle;
-      saveTasks();
-      if(isGasEnabled()) syncData(true, true);
+      if(isPriv){ savePrivateTasks(privArr); } else { saveTasks(); if(isGasEnabled()) syncData(true, true); }
       toast('✏️ タイトルを更新しました');
     }
     renderTasks();
