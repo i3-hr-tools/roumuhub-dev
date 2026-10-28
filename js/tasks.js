@@ -533,7 +533,8 @@ function updateDeadlineBanner(){
 }
 
 function openCommentModal(taskId){
-  const t = tasks.find(x=>x.id===taskId);
+  let t = tasks.find(x=>String(x.id)===String(taskId));
+  if(!t) t = getPrivateTasks().find(x=>String(x.id)===String(taskId));
   if(!t) return;
   if(!t.comments) t.comments = [];
   const overlay = document.getElementById('comment-modal-overlay');
@@ -573,7 +574,9 @@ function addCommentToTask(){
   const taskId = String(document.getElementById('cm-task-id').value);
   const text = document.getElementById('cm-input').value.trim();
   if(!text){ toast('⚠ コメントを入力してください',true); return; }
-  const t = tasks.find(x=>String(x.id)===taskId);
+  let t = tasks.find(x=>String(x.id)===taskId);
+  let isPriv=false, privArr=[];
+  if(!t){ privArr=getPrivateTasks(); t=privArr.find(x=>String(x.id)===taskId); isPriv=true; }
   if(!t) return;
   if(!t.comments) t.comments = [];
   t.comments.push({
@@ -581,17 +584,19 @@ function addCommentToTask(){
     userColor: currentUser?.color, userInitial: currentUser?.initial,
     at: new Date().toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}),
   });
-  saveTasks(); renderComments(t);
+  if(isPriv){ savePrivateTasks(privArr); } else { saveTasks(); if(isGasEnabled()) immediateSync(); }
+  renderComments(t);
   document.getElementById('cm-input').value = '';
-  if(isGasEnabled()) immediateSync();
 }
 
 function deleteTaskComment(taskId, idx){
-  const t = tasks.find(x=>x.id===taskId);
+  let t = tasks.find(x=>String(x.id)===String(taskId));
+  let isPriv=false, privArr=[];
+  if(!t){ privArr=getPrivateTasks(); t=privArr.find(x=>String(x.id)===String(taskId)); isPriv=true; }
   if(!t||!t.comments) return;
   t.comments.splice(idx,1);
-  saveTasks(); renderComments(t);
-  if(isGasEnabled()) immediateSync();
+  if(isPriv){ savePrivateTasks(privArr); } else { saveTasks(); if(isGasEnabled()) immediateSync(); }
+  renderComments(t);
 }
 
 function switchRightTab(tab, el){
@@ -604,7 +609,8 @@ function switchRightTab(tab, el){
 }
 
 function showTaskDetail(id){
-  const t = tasks.find(x=>x.id===id);
+  let t = tasks.find(x=>String(x.id)===String(id));
+  if(!t) t = getPrivateTasks().find(x=>String(x.id)===String(id));
   if(!t) return;
 
   const member   = MEMBERS.find(m=>m.id===t.assignee);
@@ -1400,7 +1406,10 @@ function addComment(id){
 function startInlineEdit(e,id){
   e.stopPropagation();
   const span=document.getElementById('title-text-'+id);
-  const t=tasks.find(t=>String(t.id)===String(id));if(!t)return;
+  let t=tasks.find(t=>String(t.id)===String(id));
+  let isPriv=false, privArr=[];
+  if(!t){ privArr=getPrivateTasks(); t=privArr.find(t=>String(t.id)===String(id)); isPriv=true; }
+  if(!t)return;
   const input=document.createElement('input');
   input.className='task-title-input';
   input.value=t.title;
@@ -1409,7 +1418,8 @@ function startInlineEdit(e,id){
   const finish=(save)=>{
     const newTitle=input.value.trim();
     if(save&&newTitle&&newTitle!==t.title){
-      t.title=newTitle;saveTasks();
+      t.title=newTitle;
+      if(isPriv){ savePrivateTasks(privArr); } else { saveTasks(); }
       toast('✏️ タイトルを更新しました');
     }
     renderTasks();
@@ -1455,12 +1465,15 @@ function previewDeadlineRule(){
 }
 
 function saveQuickEdit(id){
-  const t=tasks.find(t=>String(t.id)===String(id));if(!t)return;
+  let t=tasks.find(t=>String(t.id)===String(id));
+  let isPriv=false, privArr=[];
+  if(!t){ privArr=getPrivateTasks(); t=privArr.find(t=>String(t.id)===String(id)); isPriv=true; }
+  if(!t)return;
   t.due=document.getElementById('qe-due-'+id)?.value||t.due;
   t.assignee=document.getElementById('qe-assignee-'+id)?.value||'';
   t.approver=document.getElementById('qe-approver-'+id)?.value||'';
   t.note=document.getElementById('qe-note-'+id)?.value||'';
-  saveTasks();
+  if(isPriv){ savePrivateTasks(privArr); } else { saveTasks(); }
   const card=document.getElementById('card-'+id);
   card.classList.remove('quick-open');
   renderAll();
@@ -1469,7 +1482,8 @@ function saveQuickEdit(id){
 
 function pasteAsNew(e,id){
   e.stopPropagation();
-  const src=tasks.find(t=>String(t.id)===String(id));if(!src)return;
+  const src=tasks.find(t=>String(t.id)===String(id)) || getPrivateTasks().find(t=>String(t.id)===String(id));
+  if(!src)return;
   clipboard={...src};
   // カードにフラッシュ演出
   const card=document.getElementById('card-'+id);
@@ -1921,13 +1935,16 @@ function editTask(e,id){
 
 function delTask(e,id){
   e.stopPropagation();if(!confirm('削除しますか？'))return;
-  const t=tasks.find(t=>String(t.id)===String(id));
-  // カレンダーから削除（非同期）
-  if(t&&t.assignee&&isGasEnabled()){
-    const member=MEMBERS.find(m=>m.id===t.assignee);
+  // 通常タスクに無ければプライベートタスクを削除する
+  if(tasks.find(t=>String(t.id)===String(id))){
+    tasks=tasks.filter(t=>String(t.id)!==String(id));
+    saveTasks();
+    if(isGasEnabled()) immediateSync();
+  } else {
+    const privArr=getPrivateTasks().filter(t=>String(t.id)!==String(id));
+    savePrivateTasks(privArr);
   }
-  tasks=tasks.filter(t=>String(t.id)!==String(id));saveTasks();renderAll();toast('🗑 削除しました');
-  if(isGasEnabled()) immediateSync();
+  renderAll();toast('🗑 削除しました');
 }
 
 function setView(v,el){
