@@ -883,7 +883,7 @@ function renderTaskTable(list){
   const CAT_LABELS    = {kyuyo:'給与計算',sankyuiku:'産休・育休・休職',nyutai:'入社・退職',other:'その他'};
 
   // 親タスク行を生成
-  const taskRow = (t, i, isChild=false, hasChildren=false, isExpanded=false) => {
+  const taskRow = (t, i, isChild=false, hasChildren=false, isExpanded=false, parentId=null) => {
     const member   = MEMBERS.find(m=>m.id===t.assignee);
     const approver = MEMBERS.find(m=>m.id===t.approver);
     const dueStr   = t.due ? t.due.split('T')[0] : '';
@@ -896,7 +896,7 @@ function renderTaskTable(list){
     return `<tr data-id="${t.id}" draggable="${!isChild}" style="background:${bg};border-bottom:1px solid ${isChild?'#bae6fd':'#e2e8f0'};transition:background .1s;${!isChild?'cursor:pointer':''}"
       onmouseover="this.style.background='${isChild?'#e0f2fe':'var(--accent-light)'}'"
       onmouseout="this.style.background='${bg}'"
-      ondblclick="editTask(event,'${t.id}')"
+      ondblclick="${isChild?`openSubtaskModal(event,'${parentId}','${t.id}')`:`editTask(event,'${t.id}')`}"
       ${!isChild?`ondragstart="tableDragStart(event,'${t.id}')" ondragover="tableDragOver(event)" ondrop="tableDrop(event,'${t.id}')" ondragend="tableDragEnd(event)"`:''}>
       <td style="padding:${isChild?'6px 12px 6px 36px':'8px 12px'}">
         ${!isChild
@@ -910,7 +910,7 @@ function renderTaskTable(list){
       <!-- 完了チェック -->
       <td style="padding:${isChild?'6px 4px':'8px 4px'};width:28px">
         <input type="checkbox" ${isDone?'checked':''} title="完了にする"
-          onchange="toggleTableTaskDone('${t.id}',this.checked)"
+          onchange="${isChild?`toggleSubtaskDone('${parentId}','${t.id}')`:`toggleTableTaskDone('${t.id}',this.checked)`}"
           style="width:15px;height:15px;accent-color:var(--green);cursor:pointer;flex-shrink:0">
       </td>
       <td style="padding:${isChild?'6px 8px':'8px 12px'};max-width:260px">
@@ -996,7 +996,7 @@ function renderTaskTable(list){
             // 親タスクが展開中かどうか
             const isExpanded = tableExpandedIds.has(String(t.id));
             const parentRow = taskRow(t, i, false, subs.length>0, isExpanded);
-            const subRows = isExpanded ? subs.map(s => taskRow(s, i, true)).join('') : '';
+            const subRows = isExpanded ? subs.map(s => taskRow(s, i, true, false, false, t.id)).join('') : '';
             return parentRow + subRows;
           }).join('')}
         </tbody>
