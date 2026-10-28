@@ -474,7 +474,7 @@ function toggleSubtaskDone(parentId,subtaskId){
   checkParentAutoComplete(t);
   // 展開中のカードIDを保持
   const expandedIds=new Set([...document.querySelectorAll('.task-card.expanded')].map(el=>parseInt(el.id.replace('card-',''))));
-  saveTasks();renderSubPanel();renderTasks();renderStats();renderCatTabCounts();
+  _saveParentTask(isPriv,privArr);renderSubPanel();renderTasks();renderStats();renderCatTabCounts();
   // 展開状態を復元
   expandedIds.forEach(id=>{
     const card=document.getElementById('card-'+id);
@@ -491,7 +491,7 @@ function changeSubtaskStatus(parentId,subtaskId,status){
   const s=t.subtasks.find(s=>String(s.id)===String(subtaskId));if(!s)return;
   s.status=status;
   checkParentAutoComplete(t);
-  saveTasks();renderSubPanel();renderTasks();renderStats();renderCatTabCounts();
+  _saveParentTask(isPriv,privArr);renderSubPanel();renderTasks();renderStats();renderCatTabCounts();
 }
 
 function deleteSubtask(e,parentId,subtaskId){
@@ -499,7 +499,7 @@ function deleteSubtask(e,parentId,subtaskId){
   const {t,isPriv,privArr}=_findParentTask(parentId);if(!t||!t.subtasks)return;
   const s=t.subtasks.find(s=>String(s.id)===String(subtaskId));
   t.subtasks=t.subtasks.filter(s=>String(s.id)!==String(subtaskId));
-  saveTasks();renderSubPanel();renderTasks();toast('🗑 削除しました');
+  _saveParentTask(isPriv,privArr);renderSubPanel();renderTasks();toast('🗑 削除しました');
 }
 
 function checkParentAutoComplete(t){
@@ -580,8 +580,8 @@ function copySubtask(e,parentId,subId){
 
 function pasteSubtask(parentId){
   if(!stClipboard)return;
-  const t=tasks.find(t=>String(t.id)===String(parentId));if(!t)return;
+  const {t,isPriv,privArr}=_findParentTask(parentId);if(!t)return;
   if(!t.subtasks)t.subtasks=[];
   t.subtasks.push({...stClipboard,id:'s'+Date.now(),title:stClipboard.title+' (コピー)'});
-  saveTasks();rerenderInlineSubtasks(parentId);toast('📋 子タスクをペーストしました');
+  _saveParentTask(isPriv,privArr);rerenderInlineSubtasks(parentId);toast('📋 子タスクをペーストしました');
 }
