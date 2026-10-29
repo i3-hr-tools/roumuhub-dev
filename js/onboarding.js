@@ -214,7 +214,8 @@ function createOnboardingTasksForPerson(id){
   items.forEach((it,i)=>{
     const t = typeof it==='object' ? it : {title:it};
     const prefix  = hireLabel ? `【${label}・${hireLabel}】` : `【${label}】`;
-    const baseNote = `対象者：${p.name}${p.date?' / '+p.date:''}${t.desc?'\n'+t.desc:''}`;
+    // 対象者名はタスク名に既に含まれているため重複表示しない。日付（基準日）のみ残す
+    const baseNote = `${p.date?'基準日：'+p.date:''}${t.desc?(p.date?'\n':'')+t.desc:''}`;
     const { title, note } = safeTitleAndNote(`${prefix}${p.name} / ${t.title}`, baseNote);
     tasks.push({
       id:Date.now()+i, title,
