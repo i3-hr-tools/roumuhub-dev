@@ -16,6 +16,7 @@ function getMasterItems(key){
 
 function saveMasterItems(key, items){
   const m = CHECKLIST_MASTERS[key]; if(m) localStorage.setItem(m.storageKey, JSON.stringify(items));
+  scheduleAutoSync(); // GASへの同期をスケジュール（マスタ項目も他端末・他メンバーと共有する）
 }
 
 function getHireChecklistItems(ht){ return getMasterItems(ht); }
