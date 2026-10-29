@@ -214,12 +214,14 @@ function createOnboardingTasksForPerson(id){
   items.forEach((it,i)=>{
     const t = typeof it==='object' ? it : {title:it};
     const prefix  = hireLabel ? `【${label}・${hireLabel}】` : `【${label}】`;
+    const baseNote = `対象者：${p.name}${p.date?' / '+p.date:''}${t.desc?'\n'+t.desc:''}`;
+    const { title, note } = safeTitleAndNote(`${prefix}${p.name} / ${t.title}`, baseNote);
     tasks.push({
-      id:Date.now()+i, title:`${prefix}${p.name} / ${t.title}`,
+      id:Date.now()+i, title,
       cat:'nyutai', due, status:'todo',
       hireType: p.type==='join' ? (p.hireType||'chuto') : '',   // ← 一覧バッジ・絞り込み用
       assignee:currentUser?.id||'', approver:'', remind:'3',
-      note:`対象者：${p.name}${p.date?' / '+p.date:''}${t.desc?'\n'+t.desc:''}`,
+      note,
       rep:'', comments:[], files:[], subtasks:[],
     });
   });

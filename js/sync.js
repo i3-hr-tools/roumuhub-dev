@@ -183,6 +183,22 @@ async function syncData(silent=false, uploadOnly=false){
       catch(e){ throw new Error('GASレスポンス解析失敗: '+text.slice(0,100)); }
     }
 
+    // 送信直前の安全装置：タイトルが200文字を超えるタスクがあれば、
+    // 原因箇所（CSV取込・チェックリスト生成等）がどこであっても、ここで必ず調整する。
+    // これによりGAS側のバリデーションエラーで同期全体が止まる事故を防ぐ。
+    let titleFixedCount = 0;
+    tasks.forEach(t=>{
+      if(t.title && t.title.length > 195){
+        const { title, note } = safeTitleAndNote(t.title, t.note||'');
+        t.title = title; t.note = note;
+        titleFixedCount++;
+      }
+    });
+    if(titleFixedCount > 0){
+      _saveTasksLocal(); // 調整結果をローカルにも反映しておく
+      console.warn(`syncData: タイトルが長すぎるタスクを${titleFixedCount}件、自動調整しました`);
+    }
+
     // 1) アップロード（serverTs で楽観的ロック）
     const saveData = await gasPost({
       action:            'saveAll',

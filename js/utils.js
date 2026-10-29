@@ -117,6 +117,17 @@ function parseCsvRows(text){
   return rows;
 }
 
+// タスクのタイトルは、GAS側で200文字を超えると保存エラーになる（サーバー側のバリデーション）。
+// チェックリストの項目名に「【入社】氏名 / 」等の接頭辞を付け足すと、
+// 元の項目名が長い場合に簡単に超えてしまうため、超えた分はメモ欄に逃がす。
+function safeTitleAndNote(fullTitle, baseNote){
+  const MAX = 195; // 200文字の上限より少し余裕を持たせる
+  if(fullTitle.length <= MAX) return { title: fullTitle, note: baseNote };
+  const title = fullTitle.slice(0, MAX) + '…';
+  const note = `${baseNote||''}${baseNote?'\n':''}（タイトル全文）${fullTitle}`;
+  return { title, note };
+}
+
 function dlIcs(c,n){const b=new Blob([c],{type:'text/calendar;charset=utf-8'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);}
 function exportAllIcs(){const p=tasks.filter(t=>t.status!=='done'&&t.due);if(!p.length){toast('⚠ 対象タスクなし',true);return;}dlIcs(makeIcs(p),'roumu-team-all.ics');toast(`📅 ${p.length}件を書き出しました`);}
 
