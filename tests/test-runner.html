@@ -228,6 +228,17 @@ function assertHasSyncCall(src, funcName){
     });
   } catch(e){ test('⑥ IDのクォート漏れ再発防止', 'tasks.js の読み込み', ()=>{ throw e; }); }
 
+  try {
+    const tasksjs2 = await fetchText('../js/tasks.js');
+    test('⑦ フィルタタブと表示のズレ再発防止', 'changeStatus が完了済みビューへ強制的に画面遷移していない', ()=>{
+      const idx = tasksjs2.indexOf('function changeStatus(');
+      assert(idx >= 0, 'changeStatus関数が見つかりません');
+      const body = tasksjs2.slice(idx, idx+2500);
+      assert(!body.includes("setView('done')") && !body.includes('setView("done")'),
+        'changeStatus が setView(\'done\') を呼んでいます。「未着手タブを見ているのに完了タスクが表示される」不具合が再発している可能性があります');
+    });
+  } catch(e){ test('⑦ フィルタタブと表示のズレ再発防止', 'tasks.js の読み込み', ()=>{ throw e; }); }
+
   renderResults();
 })();
 </script>

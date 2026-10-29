@@ -1378,12 +1378,15 @@ function changeStatus(id,status){
   if(!t) return;
   const prevStatusForLog = t.status;
   t.status = status;
+  // completedAt（完了日）の設定・解除は、ログ記録とは独立して必ず行う
+  // （以前はこの処理がログ記録のif/elseに誤って結びついており、プライベートタスクや
+  //   ステータス変更無しの再実行時にcompletedAtが誤って消えるバグがあった）
   if(status==='done') t.completedAt = new Date().toISOString().split('T')[0];
+  else delete t.completedAt;
   if(!isPriv && prevStatusForLog!==status){
     const stLabels={todo:'未着手',inprogress:'進行中',review:'承認待ち',done:'完了'};
     logActivity('status', t, `ステータス: ${stLabels[prevStatusForLog]||prevStatusForLog} → ${stLabels[status]||status}`);
   }
-  else delete t.completedAt;
   if(status==='done' && t.rep){
     let nextDue = '';
     const now = new Date();
@@ -1442,11 +1445,12 @@ function changeStatus(id,status){
   }
   if(isPriv){ savePrivateTasks(priv); }
   else { saveTasks(); }
-  // 完了になったら完了済みビューへ自動移動
+  // 完了にしても画面は切り替えず、今見ているフィルタ（未着手/進行中/完了タブ）のまま
+  // 自然に一覧が更新されるようにする（以前は「完了済み」ビューへ強制的に移動しており、
+  // フィルタタブの見た目と表示内容が食い違う不具合の原因になっていた）
   if(status==='done'){
-    setView('done');
     const calMsg = (isGasEnabled()&&t.assignee&&t.due) ? '　📅 カレンダー更新中...' : '';
-    toast('✅ 完了しました → 完了済みに移動' + calMsg);
+    toast('✅ 完了しました' + calMsg);
   } else {
     toast(`ステータスを「${STATUS_LABELS[status]}」に変更しました`);
   }
