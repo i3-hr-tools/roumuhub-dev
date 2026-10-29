@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>i3 RomuHub 自動テスト</title>
+<style>
+  body{font-family:-apple-system,"Hiragino Sans",sans-serif;background:#f8fafc;margin:0;padding:24px;color:#1e293b}
+  h1{font-size:20px;margin-bottom:4px}
+  .sub{color:#64748b;font-size:13px;margin-bottom:20px}
+  .summary{display:flex;gap:12px;margin-bottom:20px}
+  .summary div{padding:10px 18px;border-radius:10px;font-weight:700;font-size:14px}
+  .s-pass{background:#dcfce7;color:#166534}
+  .s-fail{background:#fee2e2;color:#991b1b}
+  .s-total{background:#e2e8f0;color:#334155}
+  .group{background:#fff;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:14px;overflow:hidden}
+  .group-title{background:#f1f5f9;padding:8px 14px;font-weight:700;font-size:13px;color:#334155}
+  .case{display:flex;gap:10px;align-items:flex-start;padding:9px 14px;border-top:1px solid #f1f5f9;font-size:13px}
+  .ok{color:#16a34a;font-weight:700}
+  .ng{color:#dc2626;font-weight:700}
+  .msg{color:#64748b;font-size:12px;margin-top:2px}
+  button{padding:8px 16px;border-radius:8px;border:none;background:#1e293b;color:#fff;font-weight:700;cursor:pointer;font-size:13px}
+</style>
+</head>
+<body>
+  <h1>🧪 i3 RomuHub 自動テスト</h1>
+  <div class="sub">今まで実際に見つかった不具合のパターンが、再発していないかを確認します。GASには一切アクセスしません（安全に何度でも実行できます）。</div>
+  <button onclick="location.reload()">🔄 再実行</button>
+  <div id="summary" class="summary"></div>
+  <div id="results"></div>
+
+<script>
+// ══ 超シンプルなテスト枠組み（npm等は使わず、ブラウザだけで動く） ══
+const _results = [];
+function test(group, name, fn){
+  try{
+    fn();
+    _results.push({group, name, pass:true});
+  }catch(e){
+    _results.push({group, name, pass:false, msg: e.message});
+  }
+}
+function assert(cond, msg){
+  if(!cond) throw new Error(msg || 'assertion failed');
+}
+
+function renderResults(){
+  const byGroup = {};
+  _results.forEach(r=>{ (byGroup[r.group] ||= []).push(r); });
+  const el = document.getElementById('results');
+  el.innerHTML = Object.entries(byGroup).map(([g, items])=>`
+    <div class="group">
+      <div class="group-title">${g}</div>
+      ${items.map(r=>`
+        <div class="case">
+          <span class="${r.pass?'ok':'ng'}">${r.pass?'✅':'❌'}</span>
+          <div>
+            <div>${r.name}</div>
+            ${r.msg?`<div class="msg">${r.msg}</div>`:''}
+          </div>
+        </div>`).join('')}
+    </div>`).join('');
+  const pass = _results.filter(r=>r.pass).length;
+  const fail = _results.length - pass;
+  document.getElementById('summary').innerHTML = `
+    <div class="s-total">合計 ${_results.length}件</div>
+    <div class="s-pass">✅ 成功 ${pass}件</div>
+    ${fail ? `<div class="s-fail">❌ 失敗 ${fail}件</div>` : ''}
+  `;
+}
+</script>
+
+<!-- ══ 実際のアプリのコードを読み込む（本番と同じファイルをそのまま使う） ══ -->
+<script src="../js/config.js"></script>
+<script src="../js/utils.js"></script>
+
+<script>
+// findTaskById / saveTaskRef が動くための最低限のダミーデータを用意
+// （本物のDOM画面は無いので、保存・表示系の関数は呼ばず、純粋なデータ処理だけを確認する）
+let currentUser = { id: 'm_test', name: 'テストユーザー' };
+let tasks = [
+  { id: 't1', title: 'チームタスクA', assignee: 'm_test', status: 'todo' },
+];
+let _privateStore = [
+  { id: 'p1', title: 'プライベートタスクA', assignee: 'm_test', status: 'todo' },
+];
+function getPrivateTasks(){ return _privateStore; }
+let _savedTeam = false, _savedPrivate = false;
+function saveTasks(){ _savedTeam = true; }
+function savePrivateTasks(arr){ _savedPrivate = true; _privateStore = arr; }
+
+// ══ 1. XSS対策（escHtml）══
+test('① XSS対策', 'scriptタグがエスケープされる', ()=>{
+  // HTMLパーサーに誤認識されないよう、閉じタグの文字列を分割して組み立てる
+  const dangerous = '<' + 'script>alert(1)<' + '/script>';
+  const out = escHtml(dangerous);
+  assert(!out.includes('<' + 'script>'), '生のscriptタグが残っている: ' + out);
+});
+test('① XSS対策', 'null/undefinedを渡してもエラーにならない', ()=>{
+  assert(escHtml(null) === '', 'nullの扱いが想定と違う');
+  assert(escHtml(undefined) === '', 'undefinedの扱いが想定と違う');
+});
+test('① XSS対策', '通常の文字列はそのまま返る', ()=>{
+  assert(escHtml('こんにちは') === 'こんにちは', '通常文字列が変化している');
+});
+
+// ══ 2. findTaskById / saveTaskRef（プライベートタスク対応漏れの再発防止）══
+test('② 共通タスク検索・保存', 'チームタスクが見つかる', ()=>{
+  const { task, isPriv } = findTaskById('t1');
+  assert(task && task.title === 'チームタスクA', 'チームタスクが見つからない');
+  assert(isPriv === false, 'チームタスクなのにisPrivがtrueになっている');
+});
+test('② 共通タスク検索・保存', 'プライベートタスクも見つかる（ここが過去に繰り返しバグっていた箇所）', ()=>{
+  const { task, isPriv } = findTaskById('p1');
+  assert(task && task.title === 'プライベートタスクA', 'プライベートタスクが見つからない');
+  assert(isPriv === true, 'プライベートタスクなのにisPrivがfalseになっている');
+});
+test('② 共通タスク検索・保存', '存在しないIDはnullで返る（例外を投げない）', ()=>{
+  const { task } = findTaskById('not-exist');
+  assert(task === undefined, '存在しないタスクなのに何か返ってきている');
+});
+test('② 共通タスク検索・保存', 'saveTaskRef(false,...)は通常タスク側に保存される', ()=>{
+  _savedTeam = false; _savedPrivate = false;
+  saveTaskRef(false, []);
+  assert(_savedTeam === true, 'saveTasks()が呼ばれていない');
+  assert(_savedPrivate === false, 'プライベート側が誤って呼ばれている');
+});
+test('② 共通タスク検索・保存', 'saveTaskRef(true,...)はプライベート側に保存される', ()=>{
+  _savedTeam = false; _savedPrivate = false;
+  saveTaskRef(true, []);
+  assert(_savedPrivate === true, 'savePrivateTasks()が呼ばれていない');
+  assert(_savedTeam === false, 'チーム側が誤って呼ばれている');
+});
+</script>
+
+<!-- ══ 3. 「保存したのに同期されない」の再発防止（ソースコードの中身を直接チェック） ══ -->
+<script>
+async function fetchText(path){
+  const res = await fetch(path);
+  if(!res.ok) throw new Error(`${path} が取得できません（${res.status}）。このテストページをGitHub Pages上で開いているか確認してください`);
+  return res.text();
+}
+
+// 「保存関数の中でscheduleAutoSync()を呼んでいるか」を、ソースコードの文字列として検査する。
+// 実際に関数を実行するわけではないので、DOM無しの環境でも安全に確認できる。
+function assertHasSyncCall(src, funcName){
+  // 1行で書かれた関数（例: function saveMembers(){...}）にも対応するため、
+  // 改行の有無を前提にせず、最初に出てくる「}」までを関数本体とみなす
+  // （対象の関数はいずれも内部に入れ子の{}を持たない単純な関数のため、この簡易判定で十分）
+  const re = new RegExp(`function\\s+${funcName}\\s*\\([^)]*\\)\\s*\\{([\\s\\S]*?)\\}`);
+  const m = src.match(re);
+  assert(m, `${funcName} という関数が見つかりません（ファイル構成が変わった可能性）`);
+  assert(m[1].includes('scheduleAutoSync'), `${funcName} の中で scheduleAutoSync() が呼ばれていません（＝保存してもサーバーに同期されないバグの再発）`);
+}
+
+(async () => {
+  try {
+    const leave = await fetchText('../js/leave.js');
+    test('③ 保存→同期漏れの再発防止', 'saveLeaveRecords が同期をスケジュールしている', ()=>assertHasSyncCall(leave, 'saveLeaveRecords'));
+    test('③ 保存→同期漏れの再発防止', 'saveLeaveChecklistPersons が同期をスケジュールしている', ()=>assertHasSyncCall(leave, 'saveLeaveChecklistPersons'));
+  } catch(e){ test('③ 保存→同期漏れの再発防止', 'leave.js の読み込み', ()=>{ throw e; }); }
+
+  try {
+    const ob = await fetchText('../js/onboarding.js');
+    test('③ 保存→同期漏れの再発防止', 'saveOnboardingPersons が同期をスケジュールしている', ()=>assertHasSyncCall(ob, 'saveOnboardingPersons'));
+  } catch(e){ test('③ 保存→同期漏れの再発防止', 'onboarding.js の読み込み', ()=>{ throw e; }); }
+
+  try {
+    const topics = await fetchText('../js/topics.js');
+    test('③ 保存→同期漏れの再発防止', 'saveTopics が同期をスケジュールしている', ()=>assertHasSyncCall(topics, 'saveTopics'));
+  } catch(e){ test('③ 保存→同期漏れの再発防止', 'topics.js の読み込み', ()=>{ throw e; }); }
+
+  try {
+    const master = await fetchText('../js/master.js');
+    test('③ 保存→同期漏れの再発防止', 'saveMasterItems が同期をスケジュールしている', ()=>assertHasSyncCall(master, 'saveMasterItems'));
+  } catch(e){ test('③ 保存→同期漏れの再発防止', 'master.js の読み込み', ()=>{ throw e; }); }
+
+  try {
+    const members = await fetchText('../js/members.js');
+    test('③ 保存→同期漏れの再発防止', 'saveMembers が同期をスケジュールしている', ()=>assertHasSyncCall(members, 'saveMembers'));
+  } catch(e){ test('③ 保存→同期漏れの再発防止', 'members.js の読み込み', ()=>{ throw e; }); }
+
+  try {
+    const annual = await fetchText('../js/annual.js');
+    test('③ 保存→同期漏れの再発防止', 'saveAnnualProjects が同期をスケジュールしている', ()=>assertHasSyncCall(annual, 'saveAnnualProjects'));
+  } catch(e){ test('③ 保存→同期漏れの再発防止', 'annual.js の読み込み', ()=>{ throw e; }); }
+
+  // ══ 4. buildMeta/applyMeta に、同期すべき項目が揃っているか ══
+  try {
+    const html = await fetchText('../index.html');
+    const requiredKeys = ['links','docs','templates','logs','activityLogs','masterItems'];
+    test('④ 同期データの網羅性', 'buildMeta() が必要な項目を全て含んでいる', ()=>{
+      const m = html.match(/function buildMeta\(\)\{([\s\S]*?)\n\}/);
+      assert(m, 'buildMeta関数が見つかりません');
+      requiredKeys.forEach(k=>{
+        assert(m[1].includes(k+':') || m[1].includes(k+' :'), `buildMeta() に "${k}" が含まれていません（＝その項目は他端末と共有されない）`);
+      });
+    });
+    test('④ 同期データの網羅性', 'applyMeta() が必要な項目を全て反映している', ()=>{
+      // 関数の終わりを正確に求めるのは壊れやすいため、開始位置から十分な範囲（3000文字）を見て判定する簡易チェック
+      const idx = html.indexOf('function applyMeta(meta)');
+      assert(idx >= 0, 'applyMeta関数が見つかりません');
+      const body = html.slice(idx, idx+3000);
+      requiredKeys.forEach(k=>{
+        assert(body.includes('meta.'+k), `applyMeta() が "${k}" を反映していません`);
+      });
+    });
+  } catch(e){ test('④ 同期データの網羅性', 'index.html の読み込み', ()=>{ throw e; }); }
+
+  try {
+    const admin = await fetchText('../js/admin.js');
+    test('⑤ 危険パターンの再発防止', '接続テスト機能が saveAll（全データ上書き保存）を呼んでいない', ()=>{
+      const m = admin.match(/function testSyncMinimal\(\)\{([\s\S]*?)\n\}/);
+      if(m){
+        assert(!m[1].includes("'saveAll'") && !m[1].includes('"saveAll"'), 'testSyncMinimal が saveAll を呼んでいます。本番データを上書きする重大なバグが復活している可能性があります！');
+      }
+    });
+  } catch(e){ test('⑤ 危険パターンの再発防止', 'admin.js の読み込み', ()=>{ throw e; }); }
+
+  try {
+    const tasksjs = await fetchText('../js/tasks.js');
+    test('⑥ IDのクォート漏れ再発防止', 'タスクIDをイベント属性に埋め込む箇所が、引用符で囲まれている', ()=>{
+      const re = /on(?:click|change|dblclick|keydown|dragstart|dragover|drop|dragend)="([^"]*\$\{[\w.]*\.id\}[^"]*)"/g;
+      let m, bad = [];
+      while((m = re.exec(tasksjs))){
+        if(!/'\$\{[\w.]*\.id\}'/.test(m[1])) bad.push(m[1].slice(0,60));
+      }
+      assert(bad.length===0, `引用符のないID埋め込みが${bad.length}件見つかりました（文字列IDのタスクでエラーになります）: ${bad.slice(0,3).join(' / ')}`);
+    });
+  } catch(e){ test('⑥ IDのクォート漏れ再発防止', 'tasks.js の読み込み', ()=>{ throw e; }); }
+
+  renderResults();
+})();
+</script>
+</body>
+</html>
