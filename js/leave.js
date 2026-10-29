@@ -371,6 +371,7 @@ function createLeaveChecklistTasks(id){
   });
   saveTasks(); renderTasks(); renderStats();
   if(isGasEnabled()) syncData(true, true);
+  logActivity('created', {id:'bulk-leave-'+p.id, title:`${p.name}の${meta.label}手続きチェックリスト`, cat:'sankyuiku'}, `チェックリストから${items.length}件のタスクを一括作成`);
   toast(`✅ ${p.name}の${meta.label}手続き ${items.length}件をタスクに追加しました`);
 }
 

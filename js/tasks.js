@@ -2175,6 +2175,7 @@ function importCsv(){
   saveTasks();
   renderAll();
   closeCsvModal();
+  logActivity('created', {id:'bulk-csv-'+Date.now(), title:'CSV一括インポート', cat:'other'}, `既存タスクを全置換し、${tasks.length}件を取り込み`);
   toast(`✅ ${tasks.length}件のタスクを取り込みました`);
 }
 function openModal(){

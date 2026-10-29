@@ -229,6 +229,7 @@ function createOnboardingTasksForPerson(id){
   saveTasks(); renderTasks(); renderStats();
   if(isGasEnabled()) syncData(true, true);
   const tag = hireLabel?`（${hireLabel}）`:'';
+  logActivity('created', {id:'bulk-ob-'+p.id, title:`${p.name}${tag}の${label}手続きチェックリスト`, cat:'nyutai'}, `チェックリストから${items.length}件のタスクを一括作成`);
   toast(`✅ ${p.name}${tag}の${label}手続き ${items.length}件をタスクに追加しました`);
 }
 
