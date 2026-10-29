@@ -79,20 +79,24 @@ async function immediateSync() {
 }
 
 async function _doUpload() {
+  // ロックの判定と取得を同期的に（awaitを挟まず）まとめて行う。
+  // 以前はこの直後にトークン更新の await があり、その待機中に別の _doUpload() 呼び出しが
+  // 同じく「ロックされていない」と判定してしまい、二重に保存処理が走る競合状態があった。
   if (_isSyncing) return;
-  // トークン期限チェック → 期限切れなら自動更新
-  if (isGasEnabled() && isTokenExpired()) {
-    try { await refreshTokenSilently(); } catch(e) {}
-  }
   _isSyncing = true;
-  setSyncStatus('💾 保存中...');
   try {
+    // トークン期限チェック → 期限切れなら自動更新（ロック取得後に行う）
+    if (isGasEnabled() && isTokenExpired()) {
+      try { await refreshTokenSilently(); } catch(e) { console.error('refreshTokenSilently failed:', e); }
+    }
+    setSyncStatus('💾 保存中...');
     await syncData(true, true);
     _lastUploadTs = Date.now();
     setSyncStatus('💾 ' + new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}) + ' 自動保存済');
     // 保存できたタイミングで、自分担当分のGoogle ToDoも最新化
     syncMyGoogleTasks();
   } catch(e) {
+    console.error('_doUpload failed:', e);
     setSyncStatus('⚠ 保存失敗');
   } finally {
     _isSyncing = false;
@@ -106,6 +110,8 @@ function startAutoPoll() {
     // BUG-01: モーダルが開いている場合は自動取得をスキップ（入力中のデータ保護）
     // タスク編集モーダル・コメント入力・その他全モーダルをチェック
     if (document.querySelector('.modal-overlay.open')) return;
+    // トピック編集画面は .modal-overlay を使っていない独自の開閉のため、個別にガードする
+    if (document.getElementById('topic-editor')?.style.display === 'block') return;
     // コメント入力エリアにフォーカスがある場合もスキップ
     const activeEl = document.activeElement;
     if (activeEl && (activeEl.id === 'cm-input' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'INPUT')) return;
@@ -124,7 +130,7 @@ function startAutoPoll() {
       applyLoadedData(data);
       renderAll();
       setSyncStatus('↓ ' + new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}) + ' 自動取得済');
-    } catch(e) { /* ネットワークエラーは無視 */ }
+    } catch(e) { console.warn('startAutoPoll failed (一時的なネットワークエラーの可能性):', e); }
   }, 30000); // 30秒ごと
 }
 

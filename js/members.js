@@ -134,9 +134,34 @@ function deleteMember(id){
     ?`「${m.name}」を削除しますか？\nこのメンバーには${taskCount}件のタスクが割り当てられています。\n（タスクは削除されず、担当者が未割り当てになります）`
     :`「${m.name}」を削除しますか？`;
   if(!confirm(msg))return;
-  // タスクの担当者をクリア
-  tasks.forEach(t=>{if(t.assignee===id)t.assignee='';if(t.approver===id)t.approver='';});
+
+  // 通常タスク（子タスクも含めて担当者IDの参照をクリア）
+  tasks.forEach(t=>{
+    if(t.assignee===id)t.assignee='';
+    if(t.approver===id)t.approver='';
+    (t.subtasks||[]).forEach(s=>{ if(s.assignee===id) s.assignee=''; });
+  });
   saveTasks();
+
+  // プライベートタスク（本人以外のプライベートタスクが残っている可能性に備えて念のため対応）
+  const priv = getPrivateTasks();
+  let privTouched = false;
+  priv.forEach(t=>{
+    if(t.assignee===id){ t.assignee=''; privTouched=true; }
+    (t.subtasks||[]).forEach(s=>{ if(s.assignee===id){ s.assignee=''; privTouched=true; } });
+  });
+  if(privTouched) savePrivateTasks(priv);
+
+  // 年間プロジェクト（プロジェクト自体の担当者・プロジェクト内タスクの担当者）
+  if(typeof annualProjects !== 'undefined' && Array.isArray(annualProjects)){
+    let annualTouched = false;
+    annualProjects.forEach(p=>{
+      if(p.assignee===id){ p.assignee=''; annualTouched=true; }
+      (p.tasks||[]).forEach(t=>{ if(t.assignee===id){ t.assignee=''; annualTouched=true; } });
+    });
+    if(annualTouched && typeof saveAnnualProjects==='function') saveAnnualProjects();
+  }
+
   const idx=MEMBERS.findIndex(m=>m.id===id);
   if(idx>-1)MEMBERS.splice(idx,1);
   saveMembers();

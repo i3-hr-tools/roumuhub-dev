@@ -93,8 +93,14 @@ async function _upsertOneGoogleTask(key, item, map, parentGoogleId){
       });
       return existingId;
     } catch(e){
-      // 先方で削除済み等の場合は新規作成し直す
-      delete map[key];
+      // 404（先方で本当に削除済み）の場合のみ「存在しない」とみなして新規作成し直す。
+      // それ以外（通信エラー・一時的な障害等）まで同じ扱いにすると、一時的な不調のたびに
+      // 重複タスクが作られてしまうため、原因を区別する。
+      if(String(e.message).includes('404')){
+        delete map[key];
+      } else {
+        throw e; // 今回はこのタスクの処理をスキップし、次回の同期に委ねる
+      }
     }
   }
   const qs = new URLSearchParams();
@@ -113,8 +119,14 @@ async function _deleteOneGoogleTask(key, map){
   try {
     const listId = await _ensureRomuTasklist();
     await _gtasksFetch(`/lists/${listId}/tasks/${existingId}`, { method: 'DELETE' });
-  } catch(e) { /* 既に無い場合は無視 */ }
-  delete map[key];
+    delete map[key]; // 削除に成功した場合のみ対応表から消す
+  } catch(e) {
+    if(String(e.message).includes('404')){
+      delete map[key]; // 先方で既に無い場合は対応表からも消してよい
+    } else {
+      throw e; // 通信エラー等は呼び出し元に伝え、対応表には残して次回また削除を試みる
+    }
+  }
 }
 
 // ログイン中の本人に割り当てられた「期限ありタスク・子タスク」を、本人のGoogle ToDoに同期する。
@@ -126,6 +138,7 @@ async function syncMyGoogleTasks(){
     try { await refreshTokenSilently(); } catch(e){ return; }
   }
   _gtasksSyncing = true;
+  let failCount = 0;
   try {
     const map = _getGtasksMap();
     const myId = currentUser.id;
@@ -134,6 +147,10 @@ async function syncMyGoogleTasks(){
     // 全タスクを見て、「親タスク自身が自分担当」「子タスクだけ自分担当（親は別の人）」の
     // 両方のケースを拾う。チームタスク（tasks）とプライベートタスク（getPrivateTasks）の
     // 両方を対象にする（プライベートタスクは自分専用なので、常に自分担当として扱う）
+    //
+    // 【重要】1件ごとに try/catch で囲み、成功するたびに map を保存する。
+    // 以前は全体を1つのtry/catchで囲んでいたため、途中の1件が通信エラーで失敗すると
+    // それまでの成功分がmapに保存されず、次回同期時に同じタスクが重複作成されていた。
     const allTargetTasks = [...tasks, ...getPrivateTasks()];
     for(const t of allTargetTasks){
       const parentIsMine = t.assignee === myId && !!t.due;
@@ -142,20 +159,32 @@ async function syncMyGoogleTasks(){
 
       if(parentIsMine){
         syncedKeys.add(key);
-        parentGoogleId = await _upsertOneGoogleTask(key, t, map);
+        try {
+          parentGoogleId = await _upsertOneGoogleTask(key, t, map);
+          _saveGtasksMap(map);
+        } catch(e){
+          failCount++;
+          console.warn(`syncMyGoogleTasks: タスク「${t.title}」の同期に失敗（スキップして続行）:`, e);
+        }
       }
 
       const subs = (t.subtasks||[]).filter(s => s.assignee === myId && s.due);
       for(const s of subs){
         const skey = 'c:' + t.id + ':' + s.id;
         syncedKeys.add(skey);
-        if(parentGoogleId){
-          // 親も自分担当として同期済み → その下に子タスクとしてぶら下げる
-          await _upsertOneGoogleTask(skey, s, map, parentGoogleId);
-        } else {
-          // 親は自分担当ではない（別の人の親タスクに、自分だけ子タスクで入っているケース）
-          // → 単独タスクとして「親タスク名 ▸ 子タスク名」の形で同期する
-          await _upsertOneGoogleTask(skey, { ...s, title: `${t.title} ▸ ${s.title}` }, map);
+        try {
+          if(parentGoogleId){
+            // 親も自分担当として同期済み → その下に子タスクとしてぶら下げる
+            await _upsertOneGoogleTask(skey, s, map, parentGoogleId);
+          } else {
+            // 親は自分担当ではない（別の人の親タスクに、自分だけ子タスクで入っているケース）
+            // → 単独タスクとして「親タスク名 ▸ 子タスク名」の形で同期する
+            await _upsertOneGoogleTask(skey, { ...s, title: `${t.title} ▸ ${s.title}` }, map);
+          }
+          _saveGtasksMap(map);
+        } catch(e){
+          failCount++;
+          console.warn(`syncMyGoogleTasks: 子タスク「${s.title}」の同期に失敗（スキップして続行）:`, e);
         }
       }
     }
@@ -163,13 +192,18 @@ async function syncMyGoogleTasks(){
     // マップに残っているが、今回の対象から外れたものはToDo側から削除
     const staleKeys = Object.keys(map).filter(k => !syncedKeys.has(k));
     for(const k of staleKeys){
-      await _deleteOneGoogleTask(k, map);
+      try {
+        await _deleteOneGoogleTask(k, map);
+        _saveGtasksMap(map);
+      } catch(e){
+        failCount++;
+        console.warn(`syncMyGoogleTasks: 不要タスク（key=${k}）の削除に失敗（スキップして続行）:`, e);
+      }
     }
-
-    _saveGtasksMap(map);
   } catch(e) {
-    console.warn('syncMyGoogleTasks failed:', e);
+    console.error('syncMyGoogleTasks failed:', e);
   } finally {
     _gtasksSyncing = false;
+    if(failCount > 0) console.warn(`syncMyGoogleTasks: ${failCount}件の同期に失敗しました。次回の同期で再試行されます。`);
   }
 }
