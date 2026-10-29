@@ -981,12 +981,12 @@ function renderTaskTable(list){
         }
       </td>
       <!-- 完了チェック（リスト表示の完了ボタンと見た目を統一） -->
-      <td style="padding:${isChild?'4px':'6px'} 4px;width:${isChild?'70px':'86px'}" onclick="event.stopPropagation()">
+      <td style="padding:${isChild?'4px':'6px'} 4px;width:${isChild?'78px':'100px'};white-space:nowrap" onclick="event.stopPropagation()">
         <label title="${isDone?'クリックで未着手に戻す':'クリックで完了にする'}"
-          style="display:flex;align-items:center;justify-content:center;gap:3px;width:100%;padding:${isChild?'4px 2px':'5px 4px'};border-radius:7px;cursor:pointer;font-size:${isChild?'10px':'11px'};font-weight:700;font-family:var(--font);border:1px solid ${isDone?'var(--border)':'var(--green)'};background:${isDone?'var(--surface2)':'var(--green-light)'};color:${isDone?'var(--text2)':'var(--green)'}">
+          style="display:flex;align-items:center;justify-content:center;gap:3px;width:100%;padding:${isChild?'4px 2px':'5px 4px'};border-radius:7px;cursor:pointer;font-size:${isChild?'10px':'11px'};font-weight:700;font-family:var(--font);border:1px dashed ${isDone?'var(--green)':'var(--border)'};background:${isDone?'var(--green-light)':'#fff'};color:${isDone?'var(--green)':'var(--text3)'}">
           <input type="checkbox" ${isDone?'checked':''} style="display:none"
             onchange="${isChild?`toggleSubtaskDone('${parentId}','${t.id}')`:`toggleTableTaskDone('${t.id}',this.checked)`}">
-          ${isDone?'↩ 戻す':'✅ 完了'}
+          ${isDone?'✅ 完了':'☐ 完了にする'}
         </label>
       </td>
       <td style="padding:${isChild?'6px 8px':'8px 12px'};max-width:260px">
