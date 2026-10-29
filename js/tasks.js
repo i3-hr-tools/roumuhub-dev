@@ -1819,7 +1819,6 @@ function getVals(title){
     note:document.getElementById('f-note').value.trim(),
     rep:document.getElementById('f-rep').value,
     repBizDay: parseInt(document.getElementById('f-rep-biz')?.value||'0')||0,
-    private: document.getElementById('f-scope-private')?.checked || false,
     leavePersonLink:document.getElementById('f-leave-person')?.value||'',
     isPrivate: document.getElementById('f-share-private')?.checked || false,
     deadlineRule:(()=>{const el=document.getElementById('f-deadline-rule');return el?el.value:'fixed';})(),
@@ -1896,15 +1895,6 @@ function saveTask(){
   saveTasks();closeModal('modal-overlay');renderAll();
   toast('💾 保存しました');
   logActivity(editId?'updated':'created', savedTask, editId?'タスク内容を編集':'新規タスクを作成');
-  // 個人タスクも期限があればカレンダー同期（自分のカレンダーのみ）
-  if(isGasEnabled()&&savedTask.due){
-    if(!savedTask.private){
-      // チームタスク：担当者のカレンダーに同期
-    } else {
-      // 個人タスク：自分のカレンダーのみに同期
-      const selfMember = currentUser ? MEMBERS.find(m=>m.id===currentUser.id) : null;
-    }
-  }
   // scheduleAutoSyncが3秒後に自動アップロードするため個別のsyncData不要
   // 削除・ステータス変更の場合は即時同期
   if(editId && isGasEnabled()) immediateSync();
@@ -1986,8 +1976,6 @@ function editTask(e,id){
   populateLeavePersonSelect(t.leavePersonLink || '');
 
   // 公開範囲
-  const scopeEl = document.getElementById(t.private ? 'f-scope-private' : 'f-scope-team');
-  if(scopeEl){ scopeEl.checked = true; updateScopeStyle(); }
 
   // 共有設定
   const shareEl = document.getElementById(t.isPrivate ? 'f-share-private' : 'f-share-team');
@@ -2206,8 +2194,6 @@ function openModal(){
   const shareTeam = document.getElementById('f-share-team');
   if(shareTeam){ shareTeam.checked=true; onShareChange(); }
   populateLeavePersonSelect();
-  const scopeTeam = document.getElementById('f-scope-team');
-  if(scopeTeam){ scopeTeam.checked=true; updateScopeStyle(); }
   const repBizEl = document.getElementById('f-rep-biz'); if(repBizEl) repBizEl.value='';
   toggleRepOptions();
   const dde=document.getElementById('f-due-date'); if(dde)dde.value='';

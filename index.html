@@ -662,6 +662,9 @@
           <option value="other">📁 その他</option>
         </select>
       </div>
+      <div class="form-group"><label class="form-label">リマインド</label>
+        <select class="form-input" id="f-remind"><option value="">なし</option><option value="1">1日前</option><option value="3">3日前</option><option value="7">7日前</option></select>
+      </div>
     </div>
     <div class="form-row">
 
@@ -690,15 +693,14 @@
       </div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">リマインド</label>
-        <select class="form-input" id="f-remind"><option value="">なし</option><option value="1">1日前</option><option value="3">3日前</option><option value="7">7日前</option></select>
-      </div>
-      <div class="form-group"></div>
-    </div>
-    <div class="form-row">
       <div class="form-group"><label class="form-label">担当者</label>
         <select class="form-input" id="f-assignee"><option value="">未割り当て</option></select>
       </div>
+      <div class="form-group"><label class="form-label">承認者</label>
+        <select class="form-input" id="f-approver"><option value="">承認不要</option></select>
+      </div>
+    </div>
+    <div class="form-row">
       <div class="form-group"><label class="form-label">ステータス</label>
         <select class="form-input" id="f-status">
           <option value="todo">未着手</option>
@@ -707,6 +709,12 @@
           <option value="done">完了</option>
         </select>
       </div>
+      <div class="form-group"></div>
+    </div>
+    <!-- メモ（重要な手順を書くことが多いため、常に表示・大きめのサイズにする） -->
+    <div class="form-group">
+      <label class="form-label">メモ</label>
+      <textarea class="form-input" id="f-note" rows="7" placeholder="手順・備考など" style="font-size:13px;line-height:1.6;resize:vertical;min-height:140px"></textarea>
     </div>
     <!-- 詳細設定（折りたたみ） -->
     <div style="margin-top:4px">
@@ -714,13 +722,9 @@
         style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:4px 0;font-family:var(--font);width:100%"
         onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text3)'">
         <span id="modal-detail-arrow" style="transition:transform .2s">▶</span>
-        <span>詳細設定（承認者・繰り返し・メモ・公開範囲）</span>
+        <span>詳細設定（繰り返し）</span>
       </button>
       <div id="modal-detail-body" style="display:none;padding-top:8px;border-top:1px dashed var(--border);margin-top:6px">
-    <div class="form-group"><label class="form-label">承認者</label>
-
-    </div>
-    <div class="form-group"><label class="form-label">メモ</label><textarea class="form-input" id="f-note" rows="2" placeholder="担当者・備考など"></textarea></div>
     <div class="form-group"><label class="form-label">繰り返し</label>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <select class="form-input" id="f-rep" style="width:auto" onchange="toggleRepOptions()">
@@ -745,23 +749,6 @@
         </div>
       </div>
       <div style="font-size:11px;color:var(--text3);margin-top:4px" id="f-rep-note">完了にすると次回分のタスクが自動生成されます</div>
-    </div>
-    <!-- 公開範囲 -->
-    <div class="form-group">
-      <label class="form-label">公開範囲</label>
-      <div style="display:flex;gap:8px;margin-top:2px">
-        <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;border:2px solid var(--border);cursor:pointer;flex:1;transition:all .12s" id="f-scope-team-label">
-          <input type="radio" name="f-scope" id="f-scope-team" value="team" checked onchange="updateScopeStyle()"
-            style="accent-color:var(--accent)">
-          <span style="font-size:12px;font-weight:600">🌐 チーム共有</span>
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;border:2px solid var(--border);cursor:pointer;flex:1;transition:all .12s" id="f-scope-private-label">
-          <input type="radio" name="f-scope" id="f-scope-private" value="private" onchange="updateScopeStyle()"
-            style="accent-color:var(--accent)">
-          <span style="font-size:12px;font-weight:600">🔒 個人のみ</span>
-        </label>
-      </div>
-      <div style="font-size:11px;color:var(--text3);margin-top:5px" id="f-scope-note">全員のチームビューに表示されます</div>
     </div>
       </div><!-- /modal-detail-body -->
     </div><!-- /詳細設定 -->
@@ -2688,24 +2675,6 @@ function toggleModalDetail(){
   const open  = body.style.display === 'none';
   body.style.display  = open ? 'block' : 'none';
   arrow.style.transform = open ? 'rotate(90deg)' : 'rotate(0deg)';
-}
-
-function updateScopeStyle(){
-  const isPrivate = document.getElementById('f-scope-private')?.checked;
-  const teamLabel    = document.getElementById('f-scope-team-label');
-  const privateLabel = document.getElementById('f-scope-private-label');
-  const note         = document.getElementById('f-scope-note');
-  if(teamLabel){
-    teamLabel.style.borderColor    = isPrivate ? 'var(--border)' : 'var(--accent)';
-    teamLabel.style.background     = isPrivate ? '#fff' : 'var(--accent-light)';
-  }
-  if(privateLabel){
-    privateLabel.style.borderColor = isPrivate ? 'var(--accent)' : 'var(--border)';
-    privateLabel.style.background  = isPrivate ? 'var(--accent-light)' : '#fff';
-  }
-  if(note) note.textContent = isPrivate
-    ? '🔒 自分のみ表示されます（チームビューには出ません）'
-    : '🌐 全員のチームビューに表示されます';
 }
 
 
