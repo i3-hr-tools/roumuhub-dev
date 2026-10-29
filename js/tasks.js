@@ -220,6 +220,13 @@ function cancelSelectMode(){
   if(allChk) allChk.checked = false;
 }
 
+// Escキーでも選択モードを解除できるようにする（✕解除ボタンを押さなくて済むように）
+document.addEventListener('keydown', (e) => {
+  if(e.key !== 'Escape') return;
+  const banner = document.getElementById('select-mode-banner');
+  if(banner && banner.classList.contains('on')) cancelSelectMode();
+});
+
 function toggleSelectAll(checked){
   document.querySelectorAll('.task-chk').forEach(el => el.checked = checked);
   onTaskCheck();
@@ -390,20 +397,35 @@ function permanentDeleteTask(id){
   toast('🗑 完全削除しました');
 }
 
-function openBulkAssigneeModal(){
+let baMode = 'byPerson'; // 'selected'（選択したタスクのみ） | 'byPerson'（担当者ごと一括）
+
+// mode: 'selected'（選択済みタスク一覧バーの「担当者変更」から開いた場合）を渡すと、
+// そのモードで開く。省略時（ヘッダーの「担当者変更」ボタン）は従来通り'byPerson'。
+function openBulkAssigneeModal(mode){
   const fromSel = document.getElementById('ba-from');
   const toSel   = document.getElementById('ba-to');
   const memberOpts = MEMBERS.map(m=>`<option value="${escHtml(m.id)}">${escHtml(m.name)}</option>`).join('');
   fromSel.innerHTML = '<option value="">すべての担当者（担当者なし含む）</option>' + memberOpts;
   toSel.innerHTML   = '<option value="">未割り当て</option>' + memberOpts;
-  updateBulkAssigneePreview();
   // 変更時にプレビュー更新
   fromSel.onchange = updateBulkAssigneePreview;
   toSel.onchange   = updateBulkAssigneePreview;
   document.getElementById('ba-scope-tasks').onchange     = updateBulkAssigneePreview;
   document.getElementById('ba-scope-tasks-done').onchange= updateBulkAssigneePreview;
   document.getElementById('ba-scope-annual').onchange    = updateBulkAssigneePreview;
+  // 選択中のタスクがあれば「選択したタスク」モードをデフォルトにする
+  const hasSelection = getCheckedIds().length > 0;
+  switchBaMode(mode || (hasSelection ? 'selected' : 'byPerson'));
   modalShow('bulk-assignee-overlay');
+}
+
+function switchBaMode(mode){
+  baMode = mode;
+  document.getElementById('ba-mode-selected-btn').classList.toggle('active', mode==='selected');
+  document.getElementById('ba-mode-byperson-btn').classList.toggle('active', mode==='byPerson');
+  document.getElementById('ba-byperson-fields').style.display = mode==='byPerson' ? '' : 'none';
+  document.getElementById('ba-selected-count').textContent = getCheckedIds().length;
+  updateBulkAssigneePreview();
 }
 
 function closeBulkAssigneeModal(){
@@ -411,11 +433,20 @@ function closeBulkAssigneeModal(){
 }
 
 function updateBulkAssigneePreview(){
+  const preview = document.getElementById('ba-preview');
+  if(baMode === 'selected'){
+    const count = getCheckedIds().length;
+    const toId  = document.getElementById('ba-to').value;
+    const toName = toId ? (MEMBERS.find(m=>m.id===toId)?.name||'不明') : '未割り当て';
+    preview.innerHTML = count
+      ? `<div style="font-weight:700;margin-bottom:4px">変更対象: ${count}件（選択したタスク）</div><div style="color:var(--text3)">担当者を「${toName}」に変更します</div>`
+      : '<span style="color:var(--text3)">タスクが選択されていません。一覧でチェックを入れてからお試しください</span>';
+    return;
+  }
   const fromId    = document.getElementById('ba-from').value;
   const scopeTasks= document.getElementById('ba-scope-tasks').checked;
   const scopeDone = document.getElementById('ba-scope-tasks-done').checked;
   const scopeAnnual=document.getElementById('ba-scope-annual').checked;
-  const preview   = document.getElementById('ba-preview');
 
   let count = 0;
   const lines = [];
@@ -460,8 +491,33 @@ function updateBulkAssigneePreview(){
 }
 
 function execBulkAssignee(){
+  const toId = document.getElementById('ba-to').value;
+
+  if(baMode === 'selected'){
+    const ids = getCheckedIds();
+    if(!ids.length){ toast('⚠ タスクが選択されていません', true); return; }
+    // プライベートタスクの配列は1回だけ取得し、同じ参照に対してまとめて変更・保存する
+    const privArr = getPrivateTasks();
+    let count = 0, touchedPriv = false;
+    ids.forEach(id=>{
+      const teamT = tasks.find(x=>String(x.id)===String(id));
+      if(teamT){ teamT.assignee = toId; count++; return; }
+      const privT = privArr.find(x=>String(x.id)===String(id));
+      if(privT){ privT.assignee = toId; count++; touchedPriv = true; }
+    });
+    if(count === 0){ toast('⚠ 対象タスクが見つかりませんでした', true); return; }
+    saveTasks();
+    if(touchedPriv) savePrivateTasks(privArr);
+    renderAll();
+    closeBulkAssigneeModal();
+    cancelSelectMode();
+    const toName = toId ? (MEMBERS.find(m=>m.id===toId)?.name||'不明') : '未割り当て';
+    toast(`✅ ${count}件の担当者を「${toName}」に変更しました`);
+    if(isGasEnabled()) immediateSync();
+    return;
+  }
+
   const fromId     = document.getElementById('ba-from').value;
-  const toId       = document.getElementById('ba-to').value;
   const scopeTasks = document.getElementById('ba-scope-tasks').checked;
   const scopeDone  = document.getElementById('ba-scope-tasks-done').checked;
   const scopeAnnual= document.getElementById('ba-scope-annual').checked;
@@ -924,11 +980,14 @@ function renderTaskTable(list){
           : '<span style="color:#7dd3fc;font-size:12px">└</span>'
         }
       </td>
-      <!-- 完了チェック -->
-      <td style="padding:${isChild?'6px 4px':'8px 4px'};width:28px">
-        <input type="checkbox" ${isDone?'checked':''} title="完了にする"
-          onchange="${isChild?`toggleSubtaskDone('${parentId}','${t.id}')`:`toggleTableTaskDone('${t.id}',this.checked)`}"
-          style="width:15px;height:15px;accent-color:var(--green);cursor:pointer;flex-shrink:0">
+      <!-- 完了チェック（リスト表示の完了ボタンと見た目を統一） -->
+      <td style="padding:${isChild?'4px':'6px'} 4px;width:${isChild?'70px':'86px'}" onclick="event.stopPropagation()">
+        <label title="${isDone?'クリックで未着手に戻す':'クリックで完了にする'}"
+          style="display:flex;align-items:center;justify-content:center;gap:3px;width:100%;padding:${isChild?'4px 2px':'5px 4px'};border-radius:7px;cursor:pointer;font-size:${isChild?'10px':'11px'};font-weight:700;font-family:var(--font);border:1px solid ${isDone?'var(--border)':'var(--green)'};background:${isDone?'var(--surface2)':'var(--green-light)'};color:${isDone?'var(--text2)':'var(--green)'}">
+          <input type="checkbox" ${isDone?'checked':''} style="display:none"
+            onchange="${isChild?`toggleSubtaskDone('${parentId}','${t.id}')`:`toggleTableTaskDone('${t.id}',this.checked)`}">
+          ${isDone?'↩ 戻す':'✅ 完了'}
+        </label>
       </td>
       <td style="padding:${isChild?'6px 8px':'8px 12px'};max-width:260px">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
