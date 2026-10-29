@@ -263,6 +263,7 @@
         </label>
         <div id="bulk-actions" style="display:none;align-items:center;gap:5px">
           <span id="selected-count" style="font-size:11px;font-family:var(--mono);color:var(--accent);font-weight:700;padding:0 4px"></span>
+          <button onclick="openBulkAssigneeModal('selected')" class="btn btn-ghost" style="font-size:11px;padding:5px 10px">👤 担当者変更</button>
           <button onclick="bulkDuplicate()" class="btn btn-ghost" style="font-size:11px;padding:5px 10px">📋 複製</button>
           <button onclick="bulkDelete()" style="font-size:11px;padding:5px 10px;border-radius:6px;border:1px solid #fecaca;background:#fef2f2;color:var(--red);cursor:pointer;font-family:var(--font);font-weight:600"
             onmouseover="this.style.background='var(--red)';this.style.color='#fff'"
@@ -3309,36 +3310,44 @@ window.addEventListener('beforeunload', function(e) {
       <button onclick="closeBulkAssigneeModal()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text3)">✕</button>
     </div>
     <div style="flex:1;overflow-y:auto;padding:16px 20px">
-      <!-- 変更前 -->
-      <div class="form-group">
-        <label class="form-label">変更前の担当者（この人のタスクを対象にする）</label>
-        <select class="form-input" id="ba-from">
-          <option value="">すべての担当者（担当者なし含む）</option>
-        </select>
+      <!-- モード切替 -->
+      <div style="display:flex;gap:4px;margin-bottom:14px;background:var(--surface2);border-radius:9px;padding:3px">
+        <button type="button" id="ba-mode-selected-btn" onclick="switchBaMode('selected')" class="filter-chip" style="flex:1;text-align:center;justify-content:center">📋 選択したタスク（<span id="ba-selected-count">0</span>件）</button>
+        <button type="button" id="ba-mode-byperson-btn" onclick="switchBaMode('byPerson')" class="filter-chip" style="flex:1;text-align:center;justify-content:center">👥 担当者ごと一括</button>
       </div>
-      <!-- 変更後 -->
+      <!-- 変更後（両モード共通） -->
       <div class="form-group">
         <label class="form-label">変更後の担当者 *</label>
         <select class="form-input" id="ba-to">
           <option value="">未割り当て</option>
         </select>
       </div>
-      <!-- 対象範囲 -->
-      <div class="form-group">
-        <label class="form-label">対象範囲</label>
-        <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
-            <input type="checkbox" id="ba-scope-tasks" checked style="width:14px;height:14px;accent-color:var(--accent)">
-            通常タスク（完了済み除く）
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
-            <input type="checkbox" id="ba-scope-tasks-done" style="width:14px;height:14px;accent-color:var(--accent)">
-            通常タスク（完了済み含む）
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
-            <input type="checkbox" id="ba-scope-annual" checked style="width:14px;height:14px;accent-color:var(--accent)">
-            年次業務プロジェクトのタスク
-          </label>
+      <!-- 担当者ごと一括モードの時だけ表示 -->
+      <div id="ba-byperson-fields">
+        <!-- 変更前 -->
+        <div class="form-group">
+          <label class="form-label">変更前の担当者（この人のタスクを対象にする）</label>
+          <select class="form-input" id="ba-from">
+            <option value="">すべての担当者（担当者なし含む）</option>
+          </select>
+        </div>
+        <!-- 対象範囲 -->
+        <div class="form-group">
+          <label class="form-label">対象範囲</label>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
+              <input type="checkbox" id="ba-scope-tasks" checked style="width:14px;height:14px;accent-color:var(--accent)">
+              通常タスク（完了済み除く）
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
+              <input type="checkbox" id="ba-scope-tasks-done" style="width:14px;height:14px;accent-color:var(--accent)">
+              通常タスク（完了済み含む）
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
+              <input type="checkbox" id="ba-scope-annual" checked style="width:14px;height:14px;accent-color:var(--accent)">
+              年次業務プロジェクトのタスク
+            </label>
+          </div>
         </div>
       </div>
       <!-- プレビュー -->
