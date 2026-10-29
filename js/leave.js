@@ -167,7 +167,10 @@ function getChecklistItems(type, listKind){
   return defaults.map(title=>({ title, due:'' }));
 }
 
-function saveLeaveChecklistPersons(){ localStorage.setItem('leave_checklist_persons', JSON.stringify(leaveChecklistPersons)); }
+function saveLeaveChecklistPersons(){
+  localStorage.setItem('leave_checklist_persons', JSON.stringify(leaveChecklistPersons));
+  scheduleAutoSync(); // GASへの同期をスケジュール
+}
 
 // 全項目チェック済みの対象者を「完了済み」として判定する（自動で一覧から畳む）
 function isLeaveChecklistComplete(p){
@@ -369,6 +372,7 @@ function createLeaveChecklistTasks(id){
 
 function saveLeaveRecords(){
   localStorage.setItem('leave_records', JSON.stringify(leaveRecords));
+  scheduleAutoSync(); // GASへの同期をスケジュール（これが無いと他端末で復活して見える）
 }
 
 function renderLeaveGantt(){

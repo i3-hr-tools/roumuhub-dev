@@ -50,6 +50,7 @@ function loadCurrentTopics(){
 function saveTopics(){
   const now=new Date();
   localStorage.setItem(topicKey(now.getFullYear(),now.getMonth()+1),JSON.stringify(topicItems));
+  scheduleAutoSync(); // GASへの同期をスケジュール
 }
 
 function topicLabel(item){

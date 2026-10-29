@@ -1,6 +1,9 @@
 // ══ 新人オンボーディング機能 ══
 
-function saveOnboardingPersons(){ localStorage.setItem('onboarding_persons', JSON.stringify(onboardingPersons)); }
+function saveOnboardingPersons(){
+  localStorage.setItem('onboarding_persons', JSON.stringify(onboardingPersons));
+  scheduleAutoSync(); // GASへの同期をスケジュール
+}
 
 function saveOnboardingState(){ localStorage.setItem('onboarding_state', JSON.stringify(onboardingState)); }
 
