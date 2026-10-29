@@ -83,3 +83,30 @@ function makeIcs(list){
 
 function dlIcs(c,n){const b=new Blob([c],{type:'text/calendar;charset=utf-8'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);}
 function exportAllIcs(){const p=tasks.filter(t=>t.status!=='done'&&t.due);if(!p.length){toast('⚠ 対象タスクなし',true);return;}dlIcs(makeIcs(p),'roumu-team-all.ics');toast(`📅 ${p.length}件を書き出しました`);}
+
+// ══ タスク共通検索・保存ヘルパー（チーム / プライベート両対応） ══
+// 【重要な規約】タスクIDから本体を探したり保存したりする処理は、
+// 必ずこの findTaskById() / saveTaskRef() を使うこと。
+// tasks.find(...) や saveTasks() を直接書くと、プライベート（個人）タスクの
+// 場合に見つからない・保存されない、という同種のバグを何度も繰り返してきたため、
+// 窓口をこの2関数に統一する。
+//
+// 使い方:
+//   const { task, isPriv, privArr } = findTaskById(id);
+//   if (!task) return;
+//   task.status = 'done';
+//   saveTaskRef(isPriv, privArr);
+function findTaskById(id){
+  let task = tasks.find(t=>String(t.id)===String(id));
+  let isPriv = false;
+  let privArr = [];
+  if(!task){
+    privArr = getPrivateTasks();
+    task = privArr.find(t=>String(t.id)===String(id));
+    isPriv = true;
+  }
+  return { task, isPriv, privArr };
+}
+function saveTaskRef(isPriv, privArr){
+  if(isPriv){ savePrivateTasks(privArr); } else { saveTasks(); }
+}

@@ -263,17 +263,28 @@ function bulkDelete(){
 function bulkDuplicate(){
   const ids = getCheckedIds();
   if(!ids.length){ toast('⚠ タスクを選択してください',true); return; }
-  const newTasks = ids.map(id => {
-    const t = tasks.find(t=>String(t.id)===String(id));
-    if(!t) return null;
-    return JSON.parse(JSON.stringify({ ...t, id: 'task_'+String(Date.now())+'_'+Math.random().toString(36).substring(2,9), title: t.title+' (コピー)', status:'todo', comments:[], files:[] }));
-  }).filter(Boolean);
-  tasks.push(...newTasks);
-  saveTasks(); renderAll();
+  let privArr = null;
+  let teamCount = 0, privCount = 0;
+  ids.forEach(id => {
+    const { task: t, isPriv } = findTaskById(id);
+    if(!t) return;
+    const copy = JSON.parse(JSON.stringify({ ...t, id: 'task_'+String(Date.now())+'_'+Math.random().toString(36).substring(2,9), title: t.title+' (コピー)', status:'todo', comments:[], files:[] }));
+    if(isPriv){
+      if(!privArr) privArr = getPrivateTasks();
+      privArr.push(copy);
+      privCount++;
+    } else {
+      tasks.push(copy);
+      teamCount++;
+    }
+  });
+  saveTasks();
+  if(privArr) savePrivateTasks(privArr);
+  renderAll();
   document.getElementById('select-all-chk').checked = false;
   document.getElementById('bulk-actions').style.display = 'none';
-  toast(`📋 ${newTasks.length}件を複製しました`);
-  if(isGasEnabled()) syncData(true, true);
+  toast(`📋 ${teamCount+privCount}件を複製しました`);
+  if(teamCount && isGasEnabled()) syncData(true, true);
 }
 
 function getArchivedTasks(){

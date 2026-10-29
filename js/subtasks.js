@@ -71,20 +71,16 @@ function stRowHTML(parentId,s){
   </div>`;
 }
 
+// utils.js の findTaskById() / saveTaskRef() を呼ぶだけの薄いラッパー。
+// 既存の呼び出し元（{t,isPriv,privArr} という形）を壊さないよう、キー名だけ合わせている。
+// 新しいコードを書く場合は、こちらではなく findTaskById() / saveTaskRef() を直接使うこと。
 function _findParentTask(parentId){
-  let t = tasks.find(t=>String(t.id)===String(parentId));
-  let isPriv = false;
-  let privArr = [];
-  if(!t){
-    privArr = getPrivateTasks();
-    t = privArr.find(t=>String(t.id)===String(parentId));
-    isPriv = true;
-  }
-  return {t, isPriv, privArr};
+  const r = findTaskById(parentId);
+  return {t:r.task, isPriv:r.isPriv, privArr:r.privArr};
 }
 
 function _saveParentTask(isPriv, privArr){
-  if(isPriv){ savePrivateTasks(privArr); } else { saveTasks(); }
+  saveTaskRef(isPriv, privArr);
 }
 
 function quickAddSubtask(parentId){
