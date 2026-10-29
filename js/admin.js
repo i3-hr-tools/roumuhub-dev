@@ -148,6 +148,7 @@ function saveGasFromSettings(){
   else localStorage.removeItem('gas_url');
   updateGasIndicator();
   updateGasStatusBadge();
+  updateGasMissingBanner();
   // GAS URLが設定されたら自動取得を開始
   if(url) startAutoPoll();
   toast(url?'✅ GAS URLを保存しました':'🔌 GAS URLをリセットしました');

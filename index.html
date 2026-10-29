@@ -71,6 +71,18 @@
     <button class="btn btn-white" onclick="openModal()" id="hdr-add-btn">＋ タスク追加</button>
   </div>
 </header>
+<!-- ⓪ GAS未設定の警告バナー（この端末・このブラウザにまだ同期設定がされていない場合に表示） -->
+<div id="gas-missing-banner" style="display:none;background:linear-gradient(135deg,#fee2e2,#fef2f2);border-bottom:1px solid #fecaca;padding:8px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+  <span style="font-size:14px">🔌</span>
+  <div style="flex:1;font-size:12px;font-weight:600;color:#991b1b">
+    この端末・ブラウザには、まだデータ同期の設定（GAS連携）がされていません。今表示されているのは「見本用のサンプルタスク」で、実際のチームのデータではありません。
+  </div>
+  <button onclick="setMajorCat('admin',document.getElementById('tab-admin'));setTimeout(()=>switchAdminTab('settings'),100)"
+    style="font-size:11px;padding:4px 10px;border-radius:6px;border:none;background:#991b1b;color:#fff;cursor:pointer;white-space:nowrap;font-family:var(--font);font-weight:600">
+    今すぐ設定する →
+  </button>
+</div>
+
 <!-- ① 期限バナー通知 -->
 <div id="deadline-banner" style="display:none;background:linear-gradient(135deg,#fef3c7,#fff7ed);border-bottom:1px solid #fde68a;padding:8px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
   <span style="font-size:14px">⚠️</span>
@@ -1990,6 +2002,7 @@ const ACTIVITY_LOG_MAX=1000; // 肥大化防止のため上限件数を超えた
 function saveActivityLogs(){
   if(activityLogs.length>ACTIVITY_LOG_MAX) activityLogs=activityLogs.slice(-ACTIVITY_LOG_MAX);
   localStorage.setItem('activity_logs',JSON.stringify(activityLogs));
+  scheduleAutoSync(); // GASへの同期をスケジュール（他端末・他メンバーとも共有する）
 }
 
 // action: 'created' | 'updated' | 'status' | 'deleted'
@@ -2030,9 +2043,17 @@ function init(){
   clock();
   setInterval(renderReminders, 60000);
   updateGasIndicator();
+  updateGasMissingBanner();
   setInterval(checkAlerts, 300000);
   // GAS設定済みなら30秒ごとの自動取得を開始
   if(isGasEnabled()) startAutoPoll();
+}
+
+// GAS未設定時に、見本データが表示されていることを分かりやすく警告する
+function updateGasMissingBanner(){
+  const el = document.getElementById('gas-missing-banner');
+  if(!el) return;
+  el.style.display = isGasEnabled() ? 'none' : 'flex';
 }
 
 // テンプレートから不要カテゴリを自動除去
@@ -2128,12 +2149,17 @@ let _pinEntry = '';
 // メタデータ（links/docs/templates/logs）をまとめたオブジェクトを返す
 // links・docs は全員分を送る（サーバー側で全員分が蓄積される）
 function buildMeta(){
+  // チェックリストのマスタ項目（新卒・中途・産休・育休・パパ育休・休職・退職）も同期対象に含める
+  const masterItems = {};
+  MASTER_KEYS.forEach(k => { masterItems[k] = getMasterItems(k); });
   return {
-    links:     JSON.parse(localStorage.getItem('link_items')||'[]'),
-    linkCats:  JSON.parse(localStorage.getItem('link_cats')||'null'),
-    docs:      JSON.parse(localStorage.getItem('doc_items')||'[]'),
-    templates: JSON.parse(localStorage.getItem('roumu_templates')||'[]'),
-    logs:      JSON.parse(localStorage.getItem('approval_logs')||'[]'),
+    links:       JSON.parse(localStorage.getItem('link_items')||'[]'),
+    linkCats:    JSON.parse(localStorage.getItem('link_cats')||'null'),
+    docs:        JSON.parse(localStorage.getItem('doc_items')||'[]'),
+    templates:   JSON.parse(localStorage.getItem('roumu_templates')||'[]'),
+    logs:         JSON.parse(localStorage.getItem('approval_logs')||'[]'),
+    activityLogs: JSON.parse(localStorage.getItem('activity_logs')||'[]'),
+    masterItems:  masterItems,
     // logo は容量が大きいため同期対象外（端末ごとに設定）
   };
 }
@@ -2170,11 +2196,27 @@ function applyMeta(meta){
   if(meta.linkCats  !== undefined) localStorage.setItem('link_cats',       JSON.stringify(meta.linkCats));
   if(meta.templates !== undefined) localStorage.setItem('roumu_templates', JSON.stringify(meta.templates));
   if(meta.logs      !== undefined) localStorage.setItem('approval_logs',   JSON.stringify(meta.logs));
+  if(meta.activityLogs !== undefined) localStorage.setItem('activity_logs', JSON.stringify(meta.activityLogs));
   if(meta.logo)                    localStorage.setItem('company_logo',    meta.logo);
+
+  // --- チェックリストのマスタ項目（種別ごとに上書き反映）
+  if(meta.masterItems !== undefined && typeof CHECKLIST_MASTERS !== 'undefined'){
+    MASTER_KEYS.forEach(k=>{
+      if(meta.masterItems[k] !== undefined){
+        const m = CHECKLIST_MASTERS[k];
+        if(m) localStorage.setItem(m.storageKey, JSON.stringify(meta.masterItems[k]));
+      }
+    });
+    // 管理画面を開いている最中であれば表示も更新する
+    if(typeof renderMasterManager==='function' && document.getElementById('master-mgr-modal')?.classList.contains('open')){
+      renderMasterManager();
+    }
+  }
 
   if(meta.linkCats) { linkCats = meta.linkCats; }
   if(meta.templates){ templates = meta.templates; }
   if(meta.logs)     { approvalLogs = meta.logs; }
+  if(meta.activityLogs) { activityLogs = meta.activityLogs; }
   if(meta.logo)     { loadLogo(); }
 }
 

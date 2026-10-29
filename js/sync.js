@@ -26,6 +26,7 @@ function saveGasUrl(){
   closeModal('gas-modal-overlay');
   // ヘッダーの接続状態インジケーターを更新
   updateGasIndicator();
+  updateGasMissingBanner();
 }
 
 function updateGasIndicator(){
