@@ -72,7 +72,10 @@ function importChecklistMasterCsv(event){
       }
 
       const errors=[];
-      const parsed={ shinsotsu:[], chuto:[], kyushoku:[], taishoku:[] };
+      // 7種類全てを自動で用意する（以前は4種類分しか無く、産休・育休・パパ育休のデータを
+      // 含むCSVを読み込むと「Cannot read properties of undefined (reading 'push')」で失敗していた）
+      const parsed={};
+      MASTER_KEYS.forEach(k=>{ parsed[k]=[]; });
       for(let r=1;r<dataRows.length;r++){
         const {line,no}=dataRows[r]; const row=parseCsvLine(line);
         const key=normalizeMasterType(row[colIdx.type]);
