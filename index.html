@@ -2687,25 +2687,38 @@ function syncDueDatetime(){
   if(due) due.value = date ? date+'T'+time : '';
 }
 
+// 期限日欄に既に日付が入っていれば、その「年・月」を基準に営業日を数える。
+// 未入力の場合のみ、今日の月を基準にする（以前は常に今日の月で固定されていた）
+function _bizdayTargetYearMonth(){
+  const dueDateVal = document.getElementById('f-due-date')?.value; // "YYYY-MM-DD"
+  if(dueDateVal){
+    const [y,m] = dueDateVal.split('-').map(Number);
+    return { year:y, month:m-1 }; // getNthBusinessDayOfMonthは0始まりの月を期待
+  }
+  const now = new Date();
+  return { year: now.getFullYear(), month: now.getMonth() };
+}
+
 function bizdayPreview(){
   const n = parseInt(document.getElementById('f-bizday-input')?.value);
   const preview = document.getElementById('f-bizday-preview');
   if(!preview) return;
   if(!n || n < 1){ preview.textContent=''; return; }
-  const result = getNthBusinessDayOfMonth(n);
+  const { year, month } = _bizdayTargetYearMonth();
+  const result = getNthBusinessDayOfMonth(n, year, month);
   const y = result.getFullYear();
   const mo = String(result.getMonth()+1).padStart(2,'0');
   const d = String(result.getDate()).padStart(2,'0');
   const dow = ['日','月','火','水','木','金','土'][result.getDay()];
-  const now = new Date();
-  const monthLabel = `${now.getMonth()+1}月`;
+  const monthLabel = `${month+1}月`;
   preview.textContent = `→ ${monthLabel}の第${n}営業日：${y}/${mo}/${d}（${dow}）`;
 }
 
 function applyBizDay(){
   const n = parseInt(document.getElementById('f-bizday-input')?.value);
   if(!n || n < 1){ toast('⚠ 営業日数を入力してください',true); return; }
-  const result = getNthBusinessDayOfMonth(n);
+  const { year, month } = _bizdayTargetYearMonth();
+  const result = getNthBusinessDayOfMonth(n, year, month);
   const y = result.getFullYear();
   const m = String(result.getMonth()+1).padStart(2,'0');
   const d = String(result.getDate()).padStart(2,'0');
@@ -2714,10 +2727,9 @@ function applyBizDay(){
   const dueDateEl=document.getElementById('f-due-date'); if(dueDateEl) dueDateEl.value=`${y}-${m}-${d}`;
   const dow = ['日','月','火','水','木','金','土'][result.getDay()];
   const preview = document.getElementById('f-bizday-preview');
-  const now = new Date();
-  if(preview) preview.textContent = `✅ ${now.getMonth()+1}月の第${n}営業日（${y}/${m}/${d} ${dow}）を設定しました`;
+  if(preview) preview.textContent = `✅ ${month+1}月の第${n}営業日（${y}/${m}/${d} ${dow}）を設定しました`;
   document.getElementById('f-bizday-input').value = '';
-  toast(`📅 ${now.getMonth()+1}月の第${n}営業日（${y}/${m}/${d}）を期限日に設定しました`);
+  toast(`📅 ${month+1}月の第${n}営業日（${y}/${m}/${d}）を期限日に設定しました`);
 }
 
 // ══ PROGRESS ══
