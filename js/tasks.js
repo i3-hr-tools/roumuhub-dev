@@ -2109,21 +2109,22 @@ function previewCsv(event){
 }
 
 function processCsvText(text){
-  const lines = text.split(/\r?\n/).filter(l=>l.trim());
-  if(lines.length < 2){ showCsvError('データ行がありません'); return; }
+  // セル内に改行を含む行も正しく1行として扱う
+  const dataRows = parseCsvRows(text).filter(r=>r.fields.some(f=>f.trim()!==''));
+  if(dataRows.length < 2){ showCsvError('データ行がありません'); return; }
 
-  const header = parseCsvLine(lines[0]);
+  const header = dataRows[0].fields;
   const REQUIRED_HEADERS = ['タイトル'];
   const missing = REQUIRED_HEADERS.filter(h=>!header.includes(h));
   if(missing.length){ showCsvError(`列が不足しています: ${missing.join(', ')}`); return; }
 
   parsedCsvRows = [];
   const errors = [];
-  for(let i=1;i<lines.length;i++){
-    const vals = parseCsvLine(lines[i]);
+  for(let i=1;i<dataRows.length;i++){
+    const vals = dataRows[i].fields;
     const row = {};
     header.forEach((h,j)=>{ row[h] = vals[j]||''; });
-    if(!row['タイトル']){ errors.push(`${i+1}行目: タイトルが空です`); continue; }
+    if(!row['タイトル']){ errors.push(`${dataRows[i].no}行目: タイトルが空です`); continue; }
     parsedCsvRows.push(row);
   }
 

@@ -81,6 +81,42 @@ function makeIcs(list){
   return rows.join('\r\n');
 }
 
+// CSV全体を、引用符（"）で囲まれたセル内の改行やカンマも正しく扱いながら
+// 「論理的な行」単位に分割する共通関数。各種CSV取込機能（マスタ管理・年間プロジェクト・
+// 休職記録・テンプレート等）から共通で呼び出す。
+// 以前は単純に改行で区切っていたため、セルの中に改行を含む長い説明文があると、
+// そこで行がズレて以降の列が全てバラバラになってしまう不具合があった。
+function parseCsvRows(text){
+  const rows = [];
+  let field = '', row = [], inQ = false;
+  let lineNo = 1, startLineNo = 1;
+  for(let i=0; i<text.length; i++){
+    const c = text[i];
+    if(inQ){
+      if(c === '"'){
+        if(text[i+1] === '"'){ field += '"'; i++; }
+        else inQ = false;
+      } else if(c === '\n'){ lineNo++; field += '\n'; }
+      else if(c === '\r'){ /* 無視 */ }
+      else field += c;
+    } else {
+      if(c === '"'){ inQ = true; }
+      else if(c === ','){ row.push(field.trim()); field = ''; }
+      else if(c === '\r'){ /* 無視 */ }
+      else if(c === '\n'){
+        row.push(field.trim()); field = '';
+        rows.push({ fields: row, no: startLineNo });
+        row = []; lineNo++; startLineNo = lineNo;
+      } else field += c;
+    }
+  }
+  if(field !== '' || row.length > 0){
+    row.push(field.trim());
+    rows.push({ fields: row, no: startLineNo });
+  }
+  return rows;
+}
+
 function dlIcs(c,n){const b=new Blob([c],{type:'text/calendar;charset=utf-8'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);}
 function exportAllIcs(){const p=tasks.filter(t=>t.status!=='done'&&t.due);if(!p.length){toast('⚠ 対象タスクなし',true);return;}dlIcs(makeIcs(p),'roumu-team-all.ics');toast(`📅 ${p.length}件を書き出しました`);}
 

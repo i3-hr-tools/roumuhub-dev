@@ -59,11 +59,12 @@ function importChecklistMasterCsv(event){
     try{
       let text=e.target.result;
       if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
-      const lines=text.split(/\r?\n/);
-      const dataRows=[]; lines.forEach((line,idx)=>{ if(line.trim()!=='') dataRows.push({line,no:idx+1}); });
+      // 改行やカンマを含むセルにも対応した解析（セル内の空行は除外しない。
+      // 完全に空の行＝全フィールドが空文字の行のみ除外する）
+      const dataRows = parseCsvRows(text).filter(r => r.fields.some(f => f.trim() !== ''));
       if(dataRows.length<2){ show(`<span style="color:var(--red)">⚠ データ行がありません。雛形をご確認ください</span>`); event.target.value=''; return; }
 
-      const header=parseCsvLine(dataRows[0].line).map(h=>h.trim().toLowerCase());
+      const header=dataRows[0].fields.map(h=>h.trim().toLowerCase());
       const colIdx={};
       for(const k of MASTER_CSV_HEADERS){ colIdx[k]=header.findIndex(h=>MASTER_HEADER_ALIASES[k].some(a=>a.toLowerCase()===h)); }
       if(colIdx.type<0 || colIdx.task_name<0){
@@ -77,7 +78,7 @@ function importChecklistMasterCsv(event){
       const parsed={};
       MASTER_KEYS.forEach(k=>{ parsed[k]=[]; });
       for(let r=1;r<dataRows.length;r++){
-        const {line,no}=dataRows[r]; const row=parseCsvLine(line);
+        const {fields:row,no}=dataRows[r];
         const key=normalizeMasterType(row[colIdx.type]);
         const name=(row[colIdx.task_name]||'').trim();
         if(!key){ errors.push(`${no}行目のデータが不正です（種別エラー）：type「${escHtml((row[colIdx.type]||'').trim())||'（空欄）'}」は無効です。新卒 / 中途 / 産休 / 育休 / パパ育休 / 休職 / 退職 のいずれかを入力してください`); continue; }

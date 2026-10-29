@@ -503,12 +503,14 @@ function previewAnnualCsv(event){
     try{
       let text = e.target.result;
       if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
-      const lines = text.split(/\r?\n/).filter(l=>l.trim());
-      if(lines.length < 2){
+      // セル内に改行を含む行も正しく1行として扱う（以前は改行で単純分割していたため、
+      // メモ欄などに複数行の説明文があると行がズレるバグがあった）
+      const dataRows = parseCsvRows(text).filter(r=>r.fields.some(f=>f.trim()!==''));
+      if(dataRows.length < 2){
         document.getElementById('annual-csv-errors').textContent = '⚠ データ行がありません（2行目以降にデータを入力してください）';
         return;
       }
-      const header = parseCsvLine(lines[0]).map(h=>h.trim());
+      const header = dataRows[0].fields.map(h=>h.trim());
       const titleIdx    = header.findIndex(h=>/タイトル|title/i.test(h));
       const dueIdx      = header.findIndex(h=>/期限|due|date/i.test(h));
       const assigneeIdx = header.findIndex(h=>/担当|assignee|member/i.test(h));
@@ -519,10 +521,10 @@ function previewAnnualCsv(event){
       }
       annualCsvParsed = [];
       const errors = [];
-      for(let i=1;i<lines.length;i++){
-        const vals = parseCsvLine(lines[i]);
+      for(let i=1;i<dataRows.length;i++){
+        const {fields:vals,no} = dataRows[i];
         const title = (vals[titleIdx]||'').trim();
-        if(!title){ errors.push(`${i+1}行目: タイトルが空です`); continue; }
+        if(!title){ errors.push(`${no}行目: タイトルが空です`); continue; }
         const assigneeName = assigneeIdx>=0 ? (vals[assigneeIdx]||'').trim() : '';
         const member = MEMBERS.find(m=>m.name===assigneeName||m.id===assigneeName);
         annualCsvParsed.push({

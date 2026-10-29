@@ -60,15 +60,16 @@ function importTemplateCSV(event){
     try{
       let text = e.target.result;
       if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
-      const lines = text.split(/\r?\n/).filter(l=>l.trim());
-      if(lines.length < 2){ toast('⚠ データが見つかりません',true); return; }
+      // セル内に改行を含む行も正しく1行として扱う
+      const dataRows = parseCsvRows(text).filter(r=>r.fields.some(f=>f.trim()!==''));
+      if(dataRows.length < 2){ toast('⚠ データが見つかりません',true); return; }
 
-      const header = parseCsvLine(lines[0]);
+      const header = dataRows[0].fields;
       const CAT_MAP2 = {'給与計算':'kyuyo','産休・育休・休職':'sankyuiku','入社・退職':'nyutai','その他':'other'};
       let added = 0;
 
-      for(let i=1; i<lines.length; i++){
-        const row = parseCsvLine(lines[i]);
+      for(let i=1; i<dataRows.length; i++){
+        const row = dataRows[i].fields;
         if(!row.length) continue;
         const vals = {}; header.forEach((h,j)=>vals[h]=row[j]||'');
 
