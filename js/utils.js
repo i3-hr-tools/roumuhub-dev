@@ -128,6 +128,16 @@ function safeTitleAndNote(fullTitle, baseNote){
   return { title, note };
 }
 
+// "YYYY-MM-DD" 形式の日付文字列に、指定した日数（マイナス可）を加算した日付文字列を返す。
+// チェックリストマスタの「基準日からN日後」の自動期限設定に使用する。
+function applyDateOffset(baseDateStr, offsetDays){
+  if(!baseDateStr || !offsetDays) return baseDateStr;
+  const d = new Date(baseDateStr+'T00:00:00');
+  if(isNaN(d.getTime())) return baseDateStr;
+  d.setDate(d.getDate()+parseInt(offsetDays));
+  return fmt(d);
+}
+
 function dlIcs(c,n){const b=new Blob([c],{type:'text/calendar;charset=utf-8'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);}
 function exportAllIcs(){const p=tasks.filter(t=>t.status!=='done'&&t.due);if(!p.length){toast('⚠ 対象タスクなし',true);return;}dlIcs(makeIcs(p),'roumu-team-all.ics');toast(`📅 ${p.length}件を書き出しました`);}
 

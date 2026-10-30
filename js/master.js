@@ -7,11 +7,11 @@ function getMasterItems(key){
     try{
       const arr = JSON.parse(c);
       if(Array.isArray(arr)) return arr.map(it=> typeof it==='object'
-        ? {title:it.title, importance:it.importance||'', desc:it.desc||'', due:it.due||''}
-        : {title:it, importance:'', desc:'', due:''});
+        ? {title:it.title, importance:it.importance||'', desc:it.desc||'', due:it.due||'', offsetDays:it.offsetDays ?? ''}
+        : {title:it, importance:'', desc:'', due:'', offsetDays:''});
     }catch(e){}
   }
-  return m.defaults.map(it=>({...it, due:''}));
+  return m.defaults.map(it=>({...it, due:'', offsetDays:''}));
 }
 
 function saveMasterItems(key, items){
@@ -140,7 +140,7 @@ function closeMasterManager(){ modalHide('master-mgr-modal'); }
 
 function setMasterTab(key){
   masterMgrActiveKey = key;
-  masterDraft = getMasterItems(key).map(it=>({title:it.title, importance:it.importance||'', desc:it.desc||''}));
+  masterDraft = getMasterItems(key).map(it=>({title:it.title, importance:it.importance||'', desc:it.desc||'', offsetDays:it.offsetDays ?? ''}));
   renderMasterManager();
 }
 
@@ -149,25 +149,27 @@ function syncMasterDraftFromDOM(){
     const t=document.getElementById('md-title-'+i);
     const im=document.getElementById('md-imp-'+i);
     const d=document.getElementById('md-desc-'+i);
+    const off=document.getElementById('md-offset-'+i);
     if(t) it.title=t.value;
     if(im) it.importance=im.value;
     if(d) it.desc=d.value;
+    if(off) it.offsetDays=off.value;
   });
 }
 
 function masterDraftUpdate(i, field, value){ if(masterDraft[i]) masterDraft[i][field]=value; }
 
-function masterDraftAdd(){ syncMasterDraftFromDOM(); masterDraft.push({title:'',importance:'',desc:''}); renderMasterManager(); }
+function masterDraftAdd(){ syncMasterDraftFromDOM(); masterDraft.push({title:'',importance:'',desc:'',offsetDays:''}); renderMasterManager(); }
 
 function masterDraftDelete(i){ syncMasterDraftFromDOM(); masterDraft.splice(i,1); renderMasterManager(); }
 
 function saveMasterDraft(){
   syncMasterDraftFromDOM();
   const cleaned = masterDraft
-    .map(it=>({title:(it.title||'').trim(), importance:it.importance||'', desc:(it.desc||'').trim(), due:''}))
+    .map(it=>({title:(it.title||'').trim(), importance:it.importance||'', desc:(it.desc||'').trim(), due:'', offsetDays:(it.offsetDays===''||it.offsetDays==null)?'':parseInt(it.offsetDays)||0}))
     .filter(it=>it.title!=='');
   saveMasterItems(masterMgrActiveKey, cleaned);
-  masterDraft = cleaned.map(it=>({title:it.title, importance:it.importance, desc:it.desc}));
+  masterDraft = cleaned.map(it=>({title:it.title, importance:it.importance, desc:it.desc, offsetDays:it.offsetDays}));
   renderMasterManager();
   if(typeof renderOnboarding==='function') renderOnboarding();
   if(typeof renderLeaveChecklist==='function') renderLeaveChecklist();
@@ -203,12 +205,22 @@ function renderMasterManager(){
           onchange="masterDraftUpdate(${i},'desc',this.value)"
           style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font);color:var(--text2)">
       </div>
+      <div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:1px">
+        <input id="md-offset-${i}" type="number" value="${it.offsetDays ?? ''}" placeholder="0"
+          onchange="masterDraftUpdate(${i},'offsetDays',this.value)"
+          title="基準日からの日数（空欄=基準日と同じ、マイナスも可）"
+          style="width:52px;padding:5px 4px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--mono);text-align:center">
+        <span style="font-size:9px;color:var(--text3);white-space:nowrap">基準日+日</span>
+      </div>
       <button onclick="masterDraftDelete(${i})" style="flex-shrink:0;font-size:11px;padding:5px 8px;border-radius:6px;border:1px solid #fecaca;background:#fef2f2;color:var(--red);cursor:pointer">🗑</button>
     </div>`).join('');
 
   editEl.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <span style="font-size:13px;font-weight:700;color:${m.color}">${m.icon} ${m.label}用マスタ（${masterDraft.length}項目）</span>
+      <div>
+        <span style="font-size:13px;font-weight:700;color:${m.color}">${m.icon} ${m.label}用マスタ（${masterDraft.length}項目）</span>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">「基準日+日」に数字を入れると、対象者追加時の基準日からその日数ずれた日が、この項目の期限として自動設定されます（空欄は基準日と同じ）</div>
+      </div>
       <div style="display:flex;gap:6px">
         <button onclick="downloadMasterCsvTemplate('${masterMgrActiveKey}')" class="btn btn-ghost" style="font-size:11px;padding:5px 9px">⬇ この種別の雛形CSV</button>
         <button onclick="saveMasterDraft()" class="btn btn-primary" style="font-size:11px;padding:5px 12px">💾 保存</button>

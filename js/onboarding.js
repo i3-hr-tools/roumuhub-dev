@@ -217,9 +217,12 @@ function createOnboardingTasksForPerson(id){
     // 対象者名はタスク名に既に含まれているため重複表示しない。日付（基準日）のみ残す
     const baseNote = `${p.date?'基準日：'+p.date:''}${t.desc?(p.date?'\n':'')+t.desc:''}`;
     const { title, note } = safeTitleAndNote(`${prefix}${p.name} / ${t.title}`, baseNote);
+    // マスタ側で「基準日からN日」が設定されていれば、その項目だけ期限をずらす
+    const itemDue = (t.offsetDays !== undefined && t.offsetDays !== '' && t.offsetDays !== null)
+      ? applyDateOffset(due, t.offsetDays) : due;
     tasks.push({
       id:Date.now()+i, title,
-      cat:'nyutai', due, status:'todo',
+      cat:'nyutai', due: itemDue, status:'todo',
       hireType: p.type==='join' ? (p.hireType||'chuto') : '',   // ← 一覧バッジ・絞り込み用
       assignee:currentUser?.id||'', approver:'', remind:'3',
       note,
