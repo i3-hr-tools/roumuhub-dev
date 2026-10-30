@@ -297,6 +297,31 @@ function assertHasSyncCall(src, funcName){
     });
   } catch(e){ test('⑪ CSV取込の改行対応', 'utils.js の読み込み', ()=>{ throw e; }); }
 
+  // ⑫ 競合解消時のこっそり上書き事故の再発防止
+  try {
+    const syncjs2 = await fetchText('../js/sync.js');
+    test('⑫ 競合解消のこっそり上書き防止', '「スキップ」時にserverTsを更新していない（再度ちゃんと競合検知される）', ()=>{
+      const idx = syncjs2.indexOf("saveData.error === 'conflict'");
+      assert(idx >= 0, '競合判定の処理が見つかりません');
+      const body = syncjs2.slice(idx, idx+1400);
+      const elseIdx = body.indexOf('} else {');
+      assert(elseIdx >= 0, '「スキップ」側の処理（elseブロック）が見つかりません');
+      const skipBody = body.slice(elseIdx, elseIdx+500);
+      assert(!skipBody.includes('_serverTs = saveData.serverTs'), 'スキップ時にserverTsを更新しています。次回保存時に相手の変更をこっそり上書きしてしまう不具合が再発している可能性があります');
+    });
+    test('⑫ 競合解消のこっそり上書き防止', '競合保留中は自動保存が止まる仕組みがある', ()=>{
+      assert(syncjs2.includes('_conflictPending'), '_conflictPending の仕組みが見つかりません');
+      const idx = syncjs2.indexOf('async function _doUpload(');
+      assert(idx >= 0, '_doUpload関数が見つかりません');
+      assert(syncjs2.slice(idx, idx+500).includes('_conflictPending'), '_doUpload内で_conflictPendingのチェックが見つかりません');
+    });
+    test('⑫ 競合解消のこっそり上書き防止', '手動「同期」で競合保留状態をリセットできる', ()=>{
+      const idx = syncjs2.indexOf('async function syncData(');
+      assert(idx >= 0, 'syncData関数が見つかりません');
+      assert(syncjs2.slice(idx, idx+400).includes('_conflictPending = false'), 'syncData冒頭で_conflictPendingをリセットする処理が見つかりません');
+    });
+  } catch(e){ test('⑫ 競合解消のこっそり上書き防止', 'sync.js の読み込み', ()=>{ throw e; }); }
+
   renderResults();
 })();
 </script>
