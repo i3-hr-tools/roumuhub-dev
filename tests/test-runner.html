@@ -239,6 +239,64 @@ function assertHasSyncCall(src, funcName){
     });
   } catch(e){ test('⑦ フィルタタブと表示のズレ再発防止', 'tasks.js の読み込み', ()=>{ throw e; }); }
 
+  // ⑧ ID型不一致の再発防止（数値IDと文字列IDが混在しても動くか）
+  try {
+    const tasksjs3 = await fetchText('../js/tasks.js');
+    const idStrictFuncs = ['restoreFromArchive','permanentDeleteTask','toggleCardNote','tableDrop'];
+    idStrictFuncs.forEach(fn => {
+      test('⑧ ID型不一致の再発防止', `${fn} がString()で型を揃えて比較している`, ()=>{
+        const idx = tasksjs3.indexOf(`function ${fn}(`);
+        assert(idx >= 0, `${fn}関数が見つかりません`);
+        const body = tasksjs3.slice(idx, idx+600);
+        const hasRawCompare = /[^(]\.id\s*===?\s*(?!.*String)\w+Id\b/.test(body) && !body.includes('String(');
+        assert(!hasRawCompare || body.includes('String('), `${fn} がString()を使わず直接比較している可能性があります（新規タスクのIDが数値のままだと操作が効かなくなるバグの再発）`);
+      });
+    });
+  } catch(e){ test('⑧ ID型不一致の再発防止', 'tasks.js の読み込み', ()=>{ throw e; }); }
+
+  // ⑨ コメント欄のID重複再発防止
+  try {
+    const html2 = await fetchText('../index.html');
+    ['cm-list','cm-task-id','cm-input'].forEach(id=>{
+      test('⑨ コメント欄のID重複再発防止', `id="${id}" が1箇所だけに存在する`, ()=>{
+        const count = (html2.match(new RegExp(`id="${id}"`,'g'))||[]).length;
+        assert(count === 1, `id="${id}" が${count}箇所あります（重複すると、見えない方にコメントが書き込まれる不具合が再発します）`);
+      });
+    });
+  } catch(e){ test('⑨ コメント欄のID重複再発防止', 'index.html の読み込み', ()=>{ throw e; }); }
+
+  // ⑩ 保存失敗中に自動取得で上書きしてしまう事故の再発防止
+  try {
+    const syncjs = await fetchText('../js/sync.js');
+    test('⑩ 未保存データの上書き事故再発防止', 'scheduleAutoSyncが未保存フラグを立てている', ()=>{
+      const idx = syncjs.indexOf('function scheduleAutoSync(');
+      assert(idx >= 0, 'scheduleAutoSync関数が見つかりません');
+      assert(syncjs.slice(idx, idx+400).includes('_hasUnsavedChanges = true'), 'scheduleAutoSync内で_hasUnsavedChangesがtrueに設定されていません');
+    });
+    test('⑩ 未保存データの上書き事故再発防止', 'syncDataが保存成功時に未保存フラグを下ろしている', ()=>{
+      assert(syncjs.includes('_hasUnsavedChanges = false'), 'syncData内で_hasUnsavedChangesをfalseに戻す処理が見つかりません');
+    });
+    test('⑩ 未保存データの上書き事故再発防止', 'startAutoPollが未保存中は自動取得をスキップしている', ()=>{
+      const idx = syncjs.indexOf('function startAutoPoll(');
+      assert(idx >= 0, 'startAutoPoll関数が見つかりません');
+      assert(syncjs.slice(idx, idx+600).includes('_hasUnsavedChanges'), 'startAutoPoll内で_hasUnsavedChangesのチェックが見つかりません');
+    });
+  } catch(e){ test('⑩ 未保存データの上書き事故再発防止', 'sync.js の読み込み', ()=>{ throw e; }); }
+
+  // ⑪ CSV取込の改行対応（セル内改行で行がズレる不具合の再発防止）
+  try {
+    const masterjs = await fetchText('../js/master.js');
+    test('⑪ CSV取込の改行対応', 'master.jsのCSV取込がparseCsvRowsを使っている', ()=>{
+      assert(masterjs.includes('parseCsvRows('), 'parseCsvRows（改行対応の解析）が使われていません。単純な改行分割に戻っている可能性があります');
+    });
+  } catch(e){ test('⑪ CSV取込の改行対応', 'master.js の読み込み', ()=>{ throw e; }); }
+  try {
+    const utilsjs = await fetchText('../js/utils.js');
+    test('⑪ CSV取込の改行対応', 'parseCsvRowsがutils.jsに定義されている（共通化されている）', ()=>{
+      assert(utilsjs.includes('function parseCsvRows('), 'parseCsvRows関数がutils.jsに見つかりません');
+    });
+  } catch(e){ test('⑪ CSV取込の改行対応', 'utils.js の読み込み', ()=>{ throw e; }); }
+
   renderResults();
 })();
 </script>
