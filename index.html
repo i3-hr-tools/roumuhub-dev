@@ -795,18 +795,6 @@
       <button class="btn btn-ghost" onclick="closeModal('modal-overlay')">キャンセル</button>
       <button class="btn btn-primary" onclick="saveTask()">保存</button>
     </div>
-    <!-- コメントセクション（編集時のみ表示） -->
-    <div id="modal-comment-section" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
-      <input type="hidden" id="cm-task-id">
-      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px">💬 コメント</div>
-      <div id="cm-list" style="max-height:200px;overflow-y:auto;margin-bottom:10px"></div>
-      <div style="display:flex;gap:6px">
-        <textarea id="cm-input" class="form-input" rows="2" placeholder="コメントを入力..."
-          style="flex:1;resize:none;font-size:12px"
-          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();addCommentToTask();}"></textarea>
-        <button onclick="addCommentToTask()" class="btn btn-primary" style="align-self:flex-end;font-size:12px;padding:8px 12px">送信</button>
-      </div>
-    </div>
   </div>
 </div>
 
