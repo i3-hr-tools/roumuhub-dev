@@ -1990,12 +1990,11 @@ function editTask(e,id){
   if(detailBody) detailBody.style.display = 'block';
   if(detailArrow) detailArrow.style.transform = 'rotate(90deg)';
 
-  // コメントセクションを表示
-  const cmSection = document.getElementById('modal-comment-section');
-  const cmTaskId = document.getElementById('cm-task-id');
-  if(cmSection) cmSection.style.display = 'block';
-  if(cmTaskId) cmTaskId.value = String(id);
-  renderComments(t);
+  // コメントを見る・書くボタンを表示（編集時のみ）
+  const cmBtnArea = document.getElementById('modal-comment-btn-area');
+  if(cmBtnArea) cmBtnArea.style.display = 'block';
+  const cmCount = document.getElementById('modal-comment-count');
+  if(cmCount) cmCount.textContent = (t.comments||[]).length ? `（${t.comments.length}件）` : '';
 
   // モーダルを直接開く（openModal()はeditId=nullにリセットするため呼ばない）
   document.getElementById('modal-overlay').classList.add('open');
@@ -2199,9 +2198,9 @@ function openModal(){
   toggleRepOptions();
   const dde=document.getElementById('f-due-date'); if(dde)dde.value='';
   const dte=document.getElementById('f-due-time'); if(dte)dte.value='17:00';
-  // 新規作成時はコメントセクションを非表示
-  const cmSection = document.getElementById('modal-comment-section');
-  if(cmSection) cmSection.style.display = 'none';
+  // 新規作成時はコメントボタンを非表示（保存してから初めてコメントできる）
+  const cmBtnArea = document.getElementById('modal-comment-btn-area');
+  if(cmBtnArea) cmBtnArea.style.display = 'none';
   // 詳細設定を閉じた状態にリセット
   const detailBody = document.getElementById('modal-detail-body');
   const detailArrow = document.getElementById('modal-detail-arrow');
