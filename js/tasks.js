@@ -381,7 +381,7 @@ function renderArchivePanel(){
 }
 
 function restoreFromArchive(id){
-  const t = tasks.find(x=>x.id===id);
+  const t = tasks.find(x=>String(x.id)===String(id));
   if(!t) return;
   t.status = 'todo';
   t.completedAt = '';
@@ -391,7 +391,7 @@ function restoreFromArchive(id){
 
 function permanentDeleteTask(id){
   if(!confirm('このタスクを完全に削除しますか？元に戻せません。')) return;
-  const idx = tasks.findIndex(x=>x.id===id);
+  const idx = tasks.findIndex(x=>String(x.id)===String(id));
   if(idx>=0) tasks.splice(idx,1);
   saveTasks(); renderArchivePanel();
   toast('🗑 完全削除しました');
@@ -882,9 +882,9 @@ function tableDragOver(event){
 function tableDrop(event, targetId){
   event.preventDefault();
   event.currentTarget.classList.remove('dnd-over');
-  if(dragSrcId === null || dragSrcId === targetId) return;
-  const srcIdx = tasks.findIndex(t=>t.id===dragSrcId);
-  const tgtIdx = tasks.findIndex(t=>t.id===targetId);
+  if(dragSrcId === null || String(dragSrcId) === String(targetId)) return;
+  const srcIdx = tasks.findIndex(t=>String(t.id)===String(dragSrcId));
+  const tgtIdx = tasks.findIndex(t=>String(t.id)===String(targetId));
   if(srcIdx<0||tgtIdx<0) return;
   const [moved] = tasks.splice(srcIdx, 1);
   tasks.splice(tgtIdx, 0, moved);
@@ -1190,7 +1190,7 @@ function renderTasks(){
 }
 
 function toggleCardNote(id){
-  const t = tasks.find(x=>x.id===id) || getPrivateTasks().find(x=>x.id===id);
+  const t = tasks.find(x=>String(x.id)===String(id)) || getPrivateTasks().find(x=>String(x.id)===String(id));
   if(!t||!t.note) return;
   const el = document.getElementById(`note-text-${id}`);
   if(!el) return;
