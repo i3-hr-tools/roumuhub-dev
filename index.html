@@ -791,15 +791,6 @@
       </div>
       <div id="f-file-list" style="margin-top:6px;display:flex;flex-direction:column;gap:3px"></div>
     </div>
-    <!-- コメント（編集時のみ表示。実際の表示・入力は専用のコメントモーダルで行う） -->
-    <div id="modal-comment-btn-area" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
-      <button type="button" onclick="openCommentModal(editId)"
-        style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:12px;font-weight:600;color:var(--text2);font-family:var(--font)"
-        onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
-        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">
-        💬 コメントを見る・書く<span id="modal-comment-count" style="font-family:var(--mono)"></span>
-      </button>
-    </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-overlay')">キャンセル</button>
       <button class="btn btn-primary" onclick="saveTask()">保存</button>
@@ -2065,12 +2056,6 @@ let _autoSyncTimer = null;   // デバウンス用タイマー
 let _isSyncing = false;       // 同期中フラグ（競合防止）
 let _lastUploadTs = 0;        // 最終アップロード時刻（二重送信防止）
 let _autoPollTimer = null;    // 30秒自動取得タイマー
-// サーバーへのアップロードがまだ成功していない「未保存の変更」があるかどうか。
-// これがtrueの間は、自動取得（30秒ごとのポーリング）でサーバーの古いデータを
-// 取り込んで上書きしないようにする（過去に、GASが一時的に不調だった際、
-// アップロードは失敗したのに30秒ごとの取得だけ成功してしまい、
-// 「さっき追加したタスクが消えた」という事故が起きたための対策）
-let _hasUnsavedChanges = false;
 
 // ── 内部保存専用関数（GAS同期を発火しない）──
 // applyLoadedData等「サーバーから受け取ったデータをlocalStorageに書く」際に使用
@@ -3211,7 +3196,7 @@ window.addEventListener('beforeunload', function(e) {
 
 
 <!-- ② コメントモーダル -->
-<div id="comment-modal-overlay" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1500;align-items:center;justify-content:center">
+<div id="comment-modal-overlay" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:14px;width:460px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.15)">
     <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
       <div>

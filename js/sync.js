@@ -86,6 +86,9 @@ async function _doUpload() {
   // 以前はこの直後にトークン更新の await があり、その待機中に別の _doUpload() 呼び出しが
   // 同じく「ロックされていない」と判定してしまい、二重に保存処理が走る競合状態があった。
   if (_isSyncing) return;
+  // 競合が保留中（「今回はスキップ」を選んだ直後）は、自動保存での再試行はしない。
+  // 確認ダイアログが繰り返し出てしまうのを防ぐため、手動の「🔄 同期」だけを受け付ける。
+  if (_conflictPending) return;
   _isSyncing = true;
   try {
     // トークン期限チェック → 期限切れなら自動更新（ロック取得後に行う）
@@ -152,6 +155,7 @@ async function syncData(silent=false, uploadOnly=false){
   }
   // 手動同期中は自動保存をブロック
   _isSyncing = true;
+  _conflictPending = false; // 今回の試行で改めて判定し直す
   const btn=document.getElementById('sync-btn');
   if(btn){btn.classList.add('syncing');btn.innerHTML='<span class="spin"></span> 同期中...';btn.disabled=true;}
   setSyncStatus('同期中...');
@@ -238,12 +242,17 @@ async function syncData(silent=false, uploadOnly=false){
         setSyncStatus('競合解消 — サーバーデータで上書き');
         alertBanner('競合を解消しました。サーバーの最新データで画面を更新しました。','warn');
         _hasUnsavedChanges = false; // 自分の変更は破棄してサーバー側を採用したため
+        _conflictPending = false;
       } else {
-        // キャンセル時もserverTsをサーバー値に合わせてリセット（無限ループ防止）
-        _serverTs = saveData.serverTs;
-        localStorage.setItem('roumu_server_ts', _serverTs);
-        setSyncStatus('同期スキップ（競合）');
-        alertBanner('同期をスキップしました（競合）。再度「同期」を押すと再試行できます。','warn');
+        // 【重要】ここでserverTsをサーバー値に合わせて更新すると、画面上は相手の
+        // 最新変更が反映されていないのに「自分は最新を知っている」ことになってしまい、
+        // 次に保存した瞬間、確認なしで相手の変更を上書きしてしまう危険があった。
+        // そのためserverTsは更新せず、次に保存しようとした時も必ずもう一度
+        // 競合を検知させる。その代わり、自動保存のループで確認ダイアログが
+        // 繰り返し出ないよう、手動で「同期」を押すまでは自動再試行を止める。
+        _conflictPending = true;
+        setSyncStatus('⚠ 競合中 — 手動で「同期」を押してください');
+        alertBanner(`同期を保留しました（競合）。あなたの画面には、${conflictBy||'他のメンバー'}の最新の変更がまだ反映されていません。内容を確認してから、もう一度「🔄 同期」を押してください。`,'warn');
       }
       return;
     }
