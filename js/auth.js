@@ -140,6 +140,10 @@ async function completeAppLogin() {
 
 function doLogin(id){
   currentUser = MEMBERS.find(m=>m.id===id);
+  // 別の人から切り替わってログインした場合に備え、Google ToDo同期のキャッシュ（メモリ上の
+  // リストID）をリセットする。これが残っていると、前の人のToDoリストに書き込もうとして
+  // 「権限がない」エラーが大量に出る不具合があった
+  if (typeof _gtasksListId !== 'undefined') _gtasksListId = null;
   document.getElementById('user-select-modal').classList.remove('open');
   // Googleアバターが設定済みの場合は名前・アバターをGoogleアカウントのものを使う
   const gAvatar = document.getElementById('google-avatar');

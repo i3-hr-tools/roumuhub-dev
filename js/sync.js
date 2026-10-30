@@ -60,6 +60,7 @@ function scheduleAutoSync() {
   if (_isSyncing) return;
   // トークンが未取得の場合はスキップ（ログイン直後の誤同期防止）
   if (!gAccessToken) return;
+  _hasUnsavedChanges = true; // アップロードが成功するまで、自動取得による上書きを止める
   clearTimeout(_autoSyncTimer);
   _autoSyncTimer = setTimeout(async () => {
     if (_isSyncing) return;
@@ -74,6 +75,7 @@ function scheduleAutoSync() {
 async function immediateSync() {
   if (!isGasEnabled()) return;
   if (_isSyncing) return; // 既に同期中なら重複防止
+  _hasUnsavedChanges = true; // アップロードが成功するまで、自動取得による上書きを止める
   clearTimeout(_autoSyncTimer); // デバウンス中のものをキャンセル
   _autoSyncTimer = null;
   await _doUpload();
@@ -108,6 +110,14 @@ function startAutoPoll() {
   if (_autoPollTimer) return; // 二重起動防止
   _autoPollTimer = setInterval(async () => {
     if (!isGasEnabled() || _isSyncing) return;
+    // アップロードがまだ成功していない変更がある間は、自動取得でサーバーの古いデータを
+    // 取り込んで上書きしない（過去に、保存が一時的に失敗している間に自動取得だけ成功し、
+    // 追加したばかりのタスクが消えて見えた事故の再発防止）。保留中の変更があるときは、
+    // まず保存の再試行を優先する。
+    if (_hasUnsavedChanges) {
+      scheduleAutoSync();
+      return;
+    }
     // BUG-01: モーダルが開いている場合は自動取得をスキップ（入力中のデータ保護）
     // タスク編集モーダル・コメント入力・その他全モーダルをチェック
     if (document.querySelector('.modal-overlay.open')) return;
@@ -227,6 +237,7 @@ async function syncData(silent=false, uploadOnly=false){
         renderAll();
         setSyncStatus('競合解消 — サーバーデータで上書き');
         alertBanner('競合を解消しました。サーバーの最新データで画面を更新しました。','warn');
+        _hasUnsavedChanges = false; // 自分の変更は破棄してサーバー側を採用したため
       } else {
         // キャンセル時もserverTsをサーバー値に合わせてリセット（無限ループ防止）
         _serverTs = saveData.serverTs;
@@ -239,6 +250,10 @@ async function syncData(silent=false, uploadOnly=false){
 
     if(saveData && saveData.error) throw new Error('GASエラー(save): ' + saveData.error);
     if(saveData && saveData.serverTs){ _serverTs=saveData.serverTs; localStorage.setItem('roumu_server_ts',_serverTs); }
+    // アップロードが確実に成功した時点で、未保存フラグを下ろす。
+    // （これより前でエラーが起きた場合は catch に入り、フラグはtrueのまま残るので、
+    // 　自動取得（ポーリング）が古いサーバーデータで上書きするのを防げる）
+    _hasUnsavedChanges = false;
 
     // uploadOnlyモード（削除・ステータス変更等）はloadをスキップして画面を維持
     if(uploadOnly){

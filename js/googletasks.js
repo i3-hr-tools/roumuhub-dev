@@ -43,7 +43,20 @@ async function _gtasksFetch(path, options={}){
 async function _ensureRomuTasklist(){
   if(_gtasksListId) return _gtasksListId;
   const cached = localStorage.getItem(_gtasksStorageKey('listid'));
-  if(cached){ _gtasksListId = cached; return cached; }
+  if(cached){
+    // キャッシュされたIDが、今ログイン中のアカウントで本当に使えるか確認してから使う。
+    // 以前、別の人のIDが残ってしまい「権限がない」エラーが大量発生したことがあるため、
+    // 使えないと分かった時点でキャッシュを捨てて作り直す（自己修復）
+    try {
+      await _gtasksFetch(`/lists/${cached}`);
+      _gtasksListId = cached;
+      return cached;
+    } catch(e){
+      console.warn('キャッシュされたToDoリストIDが無効なため、作り直します:', e);
+      localStorage.removeItem(_gtasksStorageKey('listid'));
+      localStorage.removeItem(_gtasksStorageKey('map')); // 対応表も合わせてリセット
+    }
+  }
 
   const data = await _gtasksFetch('/users/@me/lists');
   const existing = (data?.items||[]).find(l => l.title === 'i3 RomuHub');
